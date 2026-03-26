@@ -1,0 +1,2569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPTW Sales Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    /* ================================================================
+       CSS VARIABLES
+       ================================================================ */
+    :root {
+      --gptw-red: #FF1628;
+      --gptw-red-hover: #e01222;
+      --gptw-red-light: #FF8B97;
+      --gptw-red-bg: #fff1f2;
+      --gptw-blue: #398ffc;
+      --gptw-blue-light: #e8f2ff;
+      --gptw-dark: #11131C;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f7f7f8;
+      --bg-tertiary: #ececf1;
+      --bg-sidebar: #11131C;
+      --bg-sidebar-hover: #1f2937;
+      --bg-sidebar-active: #374151;
+      --text-primary: #111827;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --text-sidebar: #d1d5db;
+      --text-sidebar-bright: #f9fafb;
+      --border: #e5e7eb;
+      --border-light: #f3f4f6;
+      --green: #22c55e;
+      --green-bg: #f0fdf4;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      --sidebar-width: 280px;
+      --artifact-width: 50%;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-primary);
+      height: 100vh;
+      overflow: hidden;
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ================================================================
+       LOGIN SCREEN
+       ================================================================ */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--gptw-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+    .login-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 48px 40px;
+      width: 420px;
+      max-width: 90vw;
+      box-shadow: var(--shadow-xl);
+      text-align: center;
+    }
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      background: var(--gptw-red);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -1px;
+    }
+    .login-card h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .login-card p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+    .login-field {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    .login-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .login-field input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color var(--transition);
+      outline: none;
+      background: var(--bg-secondary);
+    }
+    .login-field input:focus {
+      border-color: var(--gptw-red);
+      background: #fff;
+    }
+    .login-field .hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--gptw-red);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition), transform 0.1s ease;
+      margin-top: 8px;
+    }
+    .login-btn:hover { background: var(--gptw-red-hover); }
+    .login-btn:active { transform: scale(0.98); }
+
+    /* ================================================================
+       APP LAYOUT
+       ================================================================ */
+    .app {
+      display: flex;
+      height: 100vh;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .app.visible { opacity: 1; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: transform var(--transition);
+    }
+    .sidebar-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sidebar-brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--gptw-red);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #fff;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+    }
+    .sidebar-brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-brand-text strong {
+      color: var(--text-sidebar-bright);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .sidebar-brand-text span {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .sidebar-new-chat {
+      margin: 16px 16px 8px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background var(--transition);
+    }
+    .sidebar-new-chat:hover { background: rgba(255,255,255,0.1); }
+    .sidebar-new-chat svg { width: 16px; height: 16px; }
+
+    /* Quick Actions */
+    .sidebar-section-title {
+      padding: 16px 20px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .quick-actions {
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .quick-action {
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background var(--transition);
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .quick-action:hover { background: var(--bg-sidebar-hover); }
+    .quick-action .qa-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* Artifacts List in Sidebar */
+    .sidebar-artifacts-section { display: none; }
+    .sidebar-artifacts-section.has-items { display: block; }
+    .sidebar-artifacts {
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .sidebar-artifacts::-webkit-scrollbar { width: 4px; }
+    .sidebar-artifacts::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-artifacts::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+    .sidebar-artifact-item {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background var(--transition);
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .sidebar-artifact-item:hover { background: var(--bg-sidebar-hover); }
+    .sidebar-artifact-item.active { background: var(--bg-sidebar-active); color: var(--text-sidebar-bright); }
+    .sidebar-artifact-item .art-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sidebar-artifact-item .art-icon svg { width: 14px; height: 14px; }
+    .sidebar-artifact-item .art-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-spacer { flex: 1; }
+
+    /* Quota */
+    .sidebar-quota {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .quota-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .quota-label span:last-child {
+      color: var(--text-sidebar);
+      font-weight: 600;
+    }
+    .quota-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .quota-fill {
+      height: 100%;
+      background: var(--gptw-red);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .quota-fill.warning { background: #f59e0b; }
+    .quota-fill.danger { background: #ef4444; }
+
+    /* User Info */
+    .sidebar-user {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--gptw-red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .user-info { overflow: hidden; }
+    .user-name {
+      color: var(--text-sidebar-bright);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-role {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    /* ── Main Content ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      position: relative;
+    }
+
+    /* Top bar */
+    .topbar {
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 12px;
+      flex-shrink: 0;
+      background: var(--bg-primary);
+    }
+    .topbar-menu-btn {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      color: var(--text-secondary);
+    }
+    .topbar-menu-btn:hover { background: var(--bg-tertiary); }
+    .topbar-menu-btn svg { width: 20px; height: 20px; }
+    .topbar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .topbar-spacer { flex: 1; }
+    .topbar-artifact-toggle {
+      display: none;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-primary);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+      align-items: center;
+      gap: 6px;
+    }
+    .topbar-artifact-toggle.has-artifacts { display: flex; }
+    .topbar-artifact-toggle:hover { background: var(--bg-secondary); border-color: var(--gptw-red); color: var(--gptw-red); }
+    .topbar-artifact-toggle .badge {
+      background: var(--gptw-red);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    /* ── Chat Area ── */
+    .chat-wrapper {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      transition: flex var(--transition);
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0;
+      scroll-behavior: smooth;
+    }
+    .messages::-webkit-scrollbar { width: 6px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .messages::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* Welcome Screen */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .welcome-icon {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--gptw-red), var(--gptw-red-light));
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      font-size: 32px;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    .welcome h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .welcome p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .suggestions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      max-width: 560px;
+      width: 100%;
+    }
+    .suggestion {
+      padding: 16px 18px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      text-align: left;
+      transition: all var(--transition);
+      font-family: inherit;
+    }
+    .suggestion:hover {
+      border-color: var(--gptw-red-light);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .suggestion-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .suggestion-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ================================================================
+       MESSAGES
+       ================================================================ */
+    .message-row {
+      padding: 2px 0;
+      animation: msgIn 0.3s ease;
+    }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .message-inner {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 12px 24px;
+      display: flex;
+      gap: 16px;
+    }
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .message-row.user .message-avatar {
+      background: var(--gptw-dark);
+      color: #fff;
+    }
+    .message-row.assistant .message-avatar {
+      background: var(--gptw-red);
+      color: #fff;
+    }
+    .message-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .message-sender {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .message-timestamp {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .message-row:hover .message-timestamp {
+      opacity: 1;
+    }
+    .message-body {
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: var(--text-primary);
+      word-wrap: break-word;
+    }
+    .message-body p { margin-bottom: 12px; }
+    .message-body p:last-child { margin-bottom: 0; }
+    .message-body strong { font-weight: 600; }
+    .message-body ul, .message-body ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+    .message-body li { margin-bottom: 4px; }
+    .message-body code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .message-body pre {
+      background: var(--gptw-dark);
+      color: #e5e7eb;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .message-body pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    .message-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .message-body table th {
+      background: var(--bg-secondary);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+    .message-body table td {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .message-body table tr:hover td { background: var(--bg-secondary); }
+    .message-body a {
+      color: var(--gptw-red);
+      text-decoration: none;
+    }
+    .message-body a:hover { text-decoration: underline; }
+    .message-body blockquote {
+      border-left: 3px solid var(--gptw-red);
+      padding: 8px 16px;
+      margin: 12px 0;
+      background: var(--gptw-red-bg);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      color: var(--text-secondary);
+    }
+
+    /* Message Actions (thumbs, copy) */
+    .message-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .message-row:hover .message-actions { opacity: 1; }
+    .msg-action-btn {
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: inherit;
+      transition: all var(--transition);
+    }
+    .msg-action-btn:hover {
+      background: var(--bg-secondary);
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+    .msg-action-btn.active-up { color: var(--green); }
+    .msg-action-btn.active-down { color: var(--gptw-red); }
+    .msg-action-btn svg { width: 14px; height: 14px; }
+
+    /* ================================================================
+       STATUS TIMELINE (replaces bouncing dots)
+       ================================================================ */
+    .status-timeline-container {
+      animation: msgIn 0.3s ease;
+    }
+    .status-timeline-inner {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 4px 24px 4px 76px;
+    }
+    .status-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+      padding-left: 20px;
+    }
+    .status-timeline::before {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: var(--border);
+    }
+    .status-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 4px 0;
+      position: relative;
+      animation: stepIn 0.25s ease;
+    }
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .status-step-icon {
+      width: 14px;
+      height: 14px;
+      position: absolute;
+      left: -20px;
+      top: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 0;
+    }
+    .typing-indicator .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--gptw-red);
+      border-radius: 50%;
+      animation: typing-bounce 1.4s ease-in-out infinite;
+      opacity: 0.4;
+    }
+    .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+    .typing-indicator .typing-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-left: 6px;
+      font-style: italic;
+    }
+    @keyframes typing-bounce {
+      0%, 60%, 100% { opacity: 0.4; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-4px); }
+    }
+
+    .step-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid var(--border);
+      border-top-color: var(--gptw-red);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .step-check {
+      display: none;
+      color: var(--green);
+    }
+    .step-check svg { width: 12px; height: 12px; }
+    .status-step.done .step-spinner { display: none; }
+    .status-step.done .step-check { display: flex; }
+    .status-step-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Cancelled message */
+    .cancelled-msg {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 4px 0;
+    }
+
+    /* Artifact card in chat */
+    .artifact-card {
+      margin: 12px 0;
+      padding: 14px 18px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all var(--transition);
+    }
+    .artifact-card:hover {
+      border-color: var(--gptw-red-light);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .artifact-card-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--gptw-red), var(--gptw-red-light));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .artifact-card-icon svg { width: 20px; height: 20px; }
+    .artifact-card-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .artifact-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .artifact-card-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .artifact-card-arrow {
+      color: var(--text-muted);
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    /* ── Input Area ── */
+    .input-area {
+      padding: 16px 24px 24px;
+      flex-shrink: 0;
+    }
+    .input-container {
+      max-width: 740px;
+      margin: 0 auto;
+      background: var(--bg-primary);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      box-shadow: var(--shadow-sm);
+    }
+    .input-container:focus-within {
+      border-color: var(--gptw-red);
+      box-shadow: 0 0 0 3px rgba(255,22,40,0.1);
+    }
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      padding: 4px;
+    }
+    .input-row textarea {
+      flex: 1;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: inherit;
+      font-size: 14.5px;
+      line-height: 1.5;
+      padding: 12px 16px;
+      max-height: 200px;
+      background: transparent;
+      color: var(--text-primary);
+    }
+    .input-row textarea::placeholder { color: var(--text-muted); }
+
+    .send-btn, .cancel-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      flex-shrink: 0;
+      margin: 2px;
+    }
+    .send-btn {
+      background: var(--gptw-red);
+    }
+    .send-btn:hover { background: var(--gptw-red-hover); }
+    .send-btn:disabled { background: var(--border); cursor: not-allowed; }
+    .send-btn svg { width: 18px; height: 18px; color: #fff; }
+
+    .cancel-btn {
+      background: var(--text-muted);
+    }
+    .cancel-btn:hover { background: var(--text-secondary); }
+    .cancel-btn svg { width: 18px; height: 18px; color: #fff; }
+
+    .input-footer {
+      text-align: center;
+      padding-top: 8px;
+    }
+    .input-footer span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ================================================================
+       ARTIFACT PANEL
+       ================================================================ */
+    .artifact-panel {
+      width: 0;
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-primary);
+      transition: width 0.3s ease;
+      flex-shrink: 0;
+    }
+    .artifact-panel.open {
+      width: var(--artifact-width);
+    }
+    .artifact-panel-header {
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .artifact-panel-header-top {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px 0 16px;
+      gap: 8px;
+    }
+    .artifact-view-tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .artifact-view-tab {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .artifact-view-tab:hover { color: var(--text-primary); }
+    .artifact-view-tab.active {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
+    }
+    .artifact-header-spacer { flex: 1; }
+    .artifact-header-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+      flex-shrink: 0;
+      position: relative;
+    }
+    .artifact-header-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .artifact-header-btn svg { width: 16px; height: 16px; }
+
+    /* Export dropdown */
+    .export-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+      min-width: 160px;
+      z-index: 100;
+      display: none;
+      overflow: hidden;
+    }
+    .export-dropdown.open { display: block; }
+    .export-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      font-family: inherit;
+      text-align: left;
+      transition: background var(--transition);
+    }
+    .export-dropdown-item:hover { background: var(--bg-secondary); }
+    .export-dropdown-item svg { width: 14px; height: 14px; color: var(--text-secondary); }
+
+    /* Artifact items tabs row */
+    .artifact-items-tabs {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 0 16px 10px;
+    }
+    .artifact-items-tabs::-webkit-scrollbar { display: none; }
+    .artifact-item-tab {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all var(--transition);
+    }
+    .artifact-item-tab:hover { background: var(--bg-secondary); }
+    .artifact-item-tab.active {
+      background: var(--gptw-red-bg);
+      color: var(--gptw-red);
+      font-weight: 600;
+    }
+
+    /* Artifact content area */
+    .artifact-body {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    .artifact-iframe-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+    .artifact-iframe-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Presentation nav */
+    .presentation-nav {
+      display: none;
+      height: 48px;
+      border-top: 1px solid var(--border);
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-shrink: 0;
+      background: var(--bg-primary);
+    }
+    .presentation-nav.visible { display: flex; }
+    .pres-nav-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .pres-nav-btn:hover { border-color: var(--gptw-red); color: var(--gptw-red); }
+    .pres-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .pres-nav-btn svg { width: 16px; height: 16px; }
+    .pres-nav-counter {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    /* ================================================================
+       WORKSPACE VIEW
+       ================================================================ */
+    .workspace-view {
+      display: none;
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg-secondary);
+    }
+    .workspace-view.active { display: block; }
+    .workspace-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .workspace-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .workspace-export-btn {
+      padding: 8px 16px;
+      background: var(--gptw-red);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background var(--transition);
+    }
+    .workspace-export-btn:hover { background: var(--gptw-red-hover); }
+    .workspace-export-btn svg { width: 14px; height: 14px; }
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .workspace-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .workspace-card:hover {
+      border-color: var(--gptw-red-light);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    .workspace-card-preview {
+      height: 160px;
+      overflow: hidden;
+      background: #fff;
+      position: relative;
+    }
+    .workspace-card-preview iframe {
+      width: 200%;
+      height: 200%;
+      border: none;
+      transform: scale(0.5);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+    .workspace-card-info {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .workspace-card-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--gptw-red-bg);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--gptw-red);
+    }
+    .workspace-card-icon svg { width: 14px; height: 14px; }
+    .workspace-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .workspace-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .workspace-empty svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+    .workspace-empty p { font-size: 14px; }
+
+    /* ================================================================
+       QUOTA MODAL
+       ================================================================ */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    .modal-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 36px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      box-shadow: var(--shadow-xl);
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.visible .modal-box { transform: scale(1); }
+    .modal-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--gptw-red-bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 24px;
+    }
+    .modal-box h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .modal-box p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .modal-btn {
+      padding: 10px 28px;
+      background: var(--gptw-red);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    .modal-btn:hover { background: var(--gptw-red-hover); }
+
+    /* ================================================================
+       MOBILE SIDEBAR OVERLAY
+       ================================================================ */
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 900;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    .sidebar-overlay.visible { opacity: 1; visibility: visible; }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        transform: translateX(-100%);
+      }
+      .sidebar.mobile-open { transform: translateX(0); }
+      .topbar-menu-btn { display: flex; }
+      .suggestions { grid-template-columns: 1fr; }
+      .artifact-panel.open {
+        position: fixed;
+        inset: 0;
+        width: 100% !important;
+        z-index: 800;
+        border-left: none;
+      }
+      .message-inner { padding: 10px 16px; }
+      .status-timeline-inner { padding-left: 56px; }
+      .input-area { padding: 12px 16px 16px; }
+      .workspace-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .welcome h2 { font-size: 22px; }
+      .welcome p { font-size: 14px; }
+    }
+
+    /* Utility */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- =========== LOGIN =========== -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-logo">GW</div>
+      <h1>Sales Assistant</h1>
+      <p>Inicia sesion para acceder al asistente de ventas de Great Place to Work</p>
+      <form id="loginForm">
+        <div class="login-field">
+          <label for="loginName">Nombre completo</label>
+          <input type="text" id="loginName" placeholder="Ej: Maria Garcia" required autocomplete="name" />
+        </div>
+        <div class="login-field">
+          <label for="loginToken">Token de acceso</label>
+          <input type="password" id="loginToken" placeholder="Ingresa tu token" autocomplete="off" />
+          <div class="hint">Dejalo vacio para modo desarrollo</div>
+        </div>
+        <button type="submit" class="login-btn">Iniciar sesion</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========== QUOTA MODAL =========== -->
+  <div class="modal-overlay" id="quotaModal">
+    <div class="modal-box">
+      <div class="modal-icon">&#9888;&#65039;</div>
+      <h3>Limite de consultas alcanzado</h3>
+      <p>Has utilizado las 25 consultas disponibles en esta sesion. Inicia una nueva conversacion para continuar.</p>
+      <button class="modal-btn" onclick="resetChat()">Nueva conversacion</button>
+    </div>
+  </div>
+
+  <!-- =========== SIDEBAR OVERLAY (MOBILE) =========== -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- =========== MAIN APP =========== -->
+  <div class="app" id="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-icon">GW</div>
+          <div class="sidebar-brand-text">
+            <strong>GPTW Sales</strong>
+            <span>Assistant v2.0</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="sidebar-new-chat" onclick="resetChat()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva conversacion
+      </button>
+
+      <div class="sidebar-section-title">Acciones rapidas</div>
+      <div class="quick-actions">
+        <button class="quick-action" onclick="sendQuickAction('¿Como van las ventas este mes?')">
+          <span class="qa-icon">&#128200;</span> Ventas del mes
+        </button>
+        <button class="quick-action" onclick="sendQuickAction('¿Cuantas oportunidades abiertas hay?')">
+          <span class="qa-icon">&#128202;</span> Oportunidades abiertas
+        </button>
+        <button class="quick-action" onclick="sendQuickAction('¿Quien es el mejor vendedor?')">
+          <span class="qa-icon">&#127942;</span> Top vendedores
+        </button>
+        <button class="quick-action" onclick="sendQuickAction('¿Como esta el pipeline de ventas?')">
+          <span class="qa-icon">&#128640;</span> Pipeline
+        </button>
+        <button class="quick-action" onclick="sendQuickAction('Genera un dashboard completo de ventas')">
+          <span class="qa-icon">&#128203;</span> Dashboard completo
+        </button>
+      </div>
+
+      <div class="sidebar-artifacts-section" id="sidebarArtifactsSection">
+        <div class="sidebar-section-title">Artefactos</div>
+        <div class="sidebar-artifacts" id="sidebarArtifacts"></div>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="sidebar-quota">
+        <div class="quota-label">
+          <span>Consultas</span>
+          <span id="quotaText">0 / 25</span>
+        </div>
+        <div class="quota-bar">
+          <div class="quota-fill" id="quotaFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="sidebar-user" id="sidebarUser">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="userName">Usuario</div>
+          <div class="user-role">Sales Manager</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <button class="topbar-menu-btn" onclick="openSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="topbar-title">Sales Assistant</span>
+        <div class="topbar-spacer"></div>
+        <button class="topbar-artifact-toggle" id="artifactToggleBtn" onclick="toggleArtifactPanel()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          Artefactos <span class="badge" id="artifactBadge">0</span>
+        </button>
+      </div>
+
+      <div class="chat-wrapper">
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+          <div class="messages" id="messages">
+            <div class="welcome" id="welcome">
+              <div class="welcome-icon">GW</div>
+              <h2>Hola, bienvenido</h2>
+              <p>Soy tu asistente de ventas de Great Place to Work. Puedo consultar datos de Salesforce, generar reportes y dashboards para ayudarte a tomar mejores decisiones.</p>
+              <div class="suggestions">
+                <button class="suggestion" onclick="sendQuickAction('¿Como van las ventas este mes?')">
+                  <div class="suggestion-title">Ventas del mes</div>
+                  <div class="suggestion-desc">Resumen de oportunidades cerradas este mes</div>
+                </button>
+                <button class="suggestion" onclick="sendQuickAction('¿Cuantas oportunidades abiertas tenemos?')">
+                  <div class="suggestion-title">Pipeline actual</div>
+                  <div class="suggestion-desc">Oportunidades abiertas y su estado</div>
+                </button>
+                <button class="suggestion" onclick="sendQuickAction('¿Quien es el mejor vendedor este trimestre?')">
+                  <div class="suggestion-title">Top vendedores</div>
+                  <div class="suggestion-desc">Ranking de vendedores por rendimiento</div>
+                </button>
+                <button class="suggestion" onclick="sendQuickAction('Genera un dashboard completo de ventas con graficas')">
+                  <div class="suggestion-title">Dashboard completo</div>
+                  <div class="suggestion-desc">Visualizacion completa con KPIs y graficas</div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="input-area">
+            <div class="input-container">
+              <div class="input-row">
+                <textarea id="chatInput" rows="1" placeholder="Pregunta sobre ventas, pipeline, oportunidades..." disabled></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+                <button class="cancel-btn hidden" id="cancelBtn" onclick="cancelRequest()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="input-footer">
+              <span>GPTW Sales Assistant puede cometer errores. Verifica datos importantes.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Artifact Panel -->
+        <div class="artifact-panel" id="artifactPanel" tabindex="-1">
+          <div class="artifact-panel-header">
+            <div class="artifact-panel-header-top">
+              <div class="artifact-view-tabs">
+                <button class="artifact-view-tab active" data-view="single" onclick="switchArtifactView('single')">Vista</button>
+                <button class="artifact-view-tab" data-view="workspace" onclick="switchArtifactView('workspace')">Workspace</button>
+              </div>
+              <div class="artifact-header-spacer"></div>
+              <div class="artifact-header-btn" id="exportBtn" onclick="toggleExportDropdown(event)" style="position:relative">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <div class="export-dropdown" id="exportDropdown">
+                  <button class="export-dropdown-item" onclick="exportArtifactPNG(event)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Exportar como PNG
+                  </button>
+                  <button class="export-dropdown-item" onclick="exportArtifactPrint(event)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Imprimir / PDF
+                  </button>
+                </div>
+              </div>
+              <button class="artifact-header-btn" onclick="closeArtifactPanel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="artifact-items-tabs" id="artifactItemsTabs"></div>
+          </div>
+
+          <div class="artifact-body">
+            <div class="artifact-iframe-container" id="artifactContent"></div>
+            <div class="workspace-view" id="workspaceView"></div>
+          </div>
+
+          <div class="presentation-nav" id="presentationNav">
+            <button class="pres-nav-btn" id="presNavPrev" onclick="presNavPrev()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span class="pres-nav-counter" id="presNavCounter">1 / 1</span>
+            <button class="pres-nav-btn" id="presNavNext" onclick="presNavNext()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ================================================================
+       STATE
+       ================================================================ */
+    const MAX_QUESTIONS = 25;
+    let state = {
+      userName: '',
+      token: '',
+      chatId: '',
+      questionCount: 0,
+      artifacts: [],        // { id, title, html, type }
+      activeArtifact: -1,
+      isWaiting: false,
+      eventSource: null,
+      currentView: 'single', // 'single' | 'workspace'
+      feedbacks: {},         // msgId -> 'up'|'down'
+      presSlideIndex: 0,
+      presTotalSlides: 0,
+    };
+
+    let msgIdCounter = 0;
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    /* ================================================================
+       UTILITIES
+       ================================================================ */
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+      if (typeof marked !== 'undefined') {
+        marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
+        return marked.parse(text);
+      }
+      return escapeHtml(text).replace(/\n/g, '<br>');
+    }
+
+    function getTimestamp() {
+      const now = new Date();
+      return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    }
+
+    function getInitials(name) {
+      return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    }
+
+    /* ================================================================
+       LOGIN
+       ================================================================ */
+    $('#loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = $('#loginName').value.trim();
+      const token = $('#loginToken').value.trim();
+      if (!name) return;
+
+      state.userName = name;
+      state.token = token;
+      state.chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+      const initials = getInitials(name);
+      $('#userAvatar').textContent = initials;
+      $('#userName').textContent = name;
+      $('.welcome h2').textContent = 'Hola, ' + name.split(' ')[0];
+
+      $('#loginOverlay').classList.add('hidden');
+      $('#app').classList.add('visible');
+      $('#chatInput').disabled = false;
+      $('#chatInput').focus();
+      updateSendBtn();
+    });
+
+    // Enter key submits login
+    $('#loginToken').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('#loginForm').dispatchEvent(new Event('submit'));
+      }
+    });
+
+    /* ================================================================
+       CHAT INPUT
+       ================================================================ */
+    const chatInput = $('#chatInput');
+    const sendBtn = $('#sendBtn');
+    const cancelBtn = $('#cancelBtn');
+
+    chatInput.addEventListener('input', () => {
+      autoGrow(chatInput);
+      updateSendBtn();
+    });
+
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function autoGrow(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    }
+
+    function updateSendBtn() {
+      if (state.isWaiting) {
+        sendBtn.classList.add('hidden');
+        cancelBtn.classList.remove('hidden');
+      } else {
+        sendBtn.classList.remove('hidden');
+        cancelBtn.classList.add('hidden');
+        sendBtn.disabled = !chatInput.value.trim();
+      }
+    }
+
+    /* ================================================================
+       SEND MESSAGE
+       ================================================================ */
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text || state.isWaiting) return;
+
+      if (state.questionCount >= MAX_QUESTIONS) {
+        showQuotaModal();
+        return;
+      }
+
+      // Hide welcome
+      const welcome = $('#welcome');
+      if (welcome) welcome.remove();
+
+      addMessage('user', text);
+
+      state.questionCount++;
+      updateQuota();
+
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+
+      state.isWaiting = true;
+      updateSendBtn();
+
+      // Show typing indicator immediately
+      showTypingIndicator();
+
+      sendToBackend(text);
+    }
+
+    function sendQuickAction(text) {
+      chatInput.value = text;
+      sendMessage();
+      closeSidebar();
+    }
+
+    /* ================================================================
+       CANCEL REQUEST
+       ================================================================ */
+    async function cancelRequest() {
+      if (!state.isWaiting) return;
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+
+        fetch('/cancel', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ chat_id: state.chatId }),
+        });
+      } catch (e) {
+        // ignore
+      }
+
+      // Close SSE
+      if (state.eventSource) {
+        state.eventSource.close();
+        state.eventSource = null;
+      }
+
+      // Finish statuses and remove active timeline
+      finishStatuses();
+
+      // Add cancelled message
+      const container = $('#messages');
+      const row = document.createElement('div');
+      row.className = 'message-row assistant';
+      row.innerHTML = `
+        <div class="message-inner">
+          <div class="message-avatar">GW</div>
+          <div class="message-content">
+            <div class="cancelled-msg">Consulta cancelada</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+      scrollToBottom();
+
+      state.isWaiting = false;
+      updateSendBtn();
+      chatInput.focus();
+    }
+
+    /* ================================================================
+       API COMMUNICATION
+       ================================================================ */
+    async function sendToBackend(text) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (state.token) {
+        headers['Authorization'] = 'Bearer ' + state.token;
+      }
+
+      try {
+        const res = await fetch('/message', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            text,
+            chat_id: state.chatId,
+            user_name: state.userName,
+          }),
+        });
+
+        if (!res.ok) {
+          state.isWaiting = false;
+          updateSendBtn();
+          addMessage('assistant', 'Error: No se pudo enviar el mensaje. (' + res.status + ')');
+          return;
+        }
+
+        connectSSE();
+      } catch (err) {
+        state.isWaiting = false;
+        updateSendBtn();
+        addMessage('assistant', 'Error de conexion: ' + err.message);
+      }
+    }
+
+    function connectSSE() {
+      if (state.eventSource) {
+        state.eventSource.close();
+      }
+
+      let url = '/events?chat_id=' + encodeURIComponent(state.chatId);
+      if (state.token) {
+        url += '&token=' + encodeURIComponent(state.token);
+      }
+
+      const es = new EventSource(url);
+      state.eventSource = es;
+
+      es.addEventListener('status', (e) => {
+        removeTypingIndicator();
+        try {
+          const data = JSON.parse(e.data);
+          addStatus(data.text || data.message || e.data);
+        } catch {
+          addStatus(e.data);
+        }
+      });
+
+      es.addEventListener('artifact', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          finishStatuses();
+          addArtifact(data.title || 'Dashboard generado', data.html || '', data.type || 'dashboard');
+        } catch {
+          console.error('Failed to parse artifact event');
+        }
+      });
+
+      es.addEventListener('message', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.role === 'assistant' || !data.role) {
+            removeTypingIndicator();
+            finishStatuses();
+            addMessage('assistant', data.text || data.content || e.data);
+            state.isWaiting = false;
+            updateSendBtn();
+            chatInput.focus();
+          }
+        } catch {
+          removeTypingIndicator();
+          finishStatuses();
+          addMessage('assistant', e.data);
+          state.isWaiting = false;
+          updateSendBtn();
+        }
+      });
+
+      es.addEventListener('done', () => {
+        finishStatuses();
+        state.isWaiting = false;
+        updateSendBtn();
+        es.close();
+        state.eventSource = null;
+      });
+
+      es.addEventListener('error_event', (e) => {
+        finishStatuses();
+        state.isWaiting = false;
+        updateSendBtn();
+        try {
+          const data = JSON.parse(e.data);
+          addMessage('assistant', 'Error: ' + (data.text || data.message || 'Error desconocido'));
+        } catch {
+          addMessage('assistant', 'Error: ' + e.data);
+        }
+        es.close();
+        state.eventSource = null;
+      });
+
+      es.onerror = () => {
+        finishStatuses();
+        state.isWaiting = false;
+        updateSendBtn();
+        es.close();
+        state.eventSource = null;
+      };
+    }
+
+    /* ================================================================
+       MESSAGES
+       ================================================================ */
+    function showTypingIndicator() {
+      removeTypingIndicator();
+      const container = $('#messages');
+      const row = document.createElement('div');
+      row.className = 'message-row assistant';
+      row.id = 'typing-indicator';
+      row.innerHTML = `
+        <div class="message-inner">
+          <div class="message-avatar">GW</div>
+          <div class="message-content">
+            <div class="message-header">
+              <div class="message-sender">GPTW Assistant</div>
+            </div>
+            <div class="message-body">
+              <div class="typing-indicator">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <span class="typing-text">Pensando...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+      scrollToBottom();
+    }
+
+    function removeTypingIndicator() {
+      const el = document.getElementById('typing-indicator');
+      if (el) el.remove();
+    }
+
+    function addMessage(role, text) {
+      const container = $('#messages');
+      const row = document.createElement('div');
+      const msgId = 'msg_' + (++msgIdCounter);
+      row.className = 'message-row ' + role;
+      row.dataset.msgId = msgId;
+
+      const isUser = role === 'user';
+      const initials = isUser ? getInitials(state.userName) : 'GW';
+      const senderName = isUser ? state.userName : 'GPTW Assistant';
+      const timestamp = getTimestamp();
+
+      let bodyHtml;
+      if (isUser) {
+        bodyHtml = escapeHtml(text).replace(/\n/g, '<br>');
+      } else {
+        bodyHtml = renderMarkdown(text);
+      }
+
+      const actionsHtml = isUser ? '' : `
+        <div class="message-actions">
+          <button class="msg-action-btn" onclick="copyMessage(this)" title="Copiar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <button class="msg-action-btn" onclick="feedbackMessage('${msgId}', 'up', this)" title="Buena respuesta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          </button>
+          <button class="msg-action-btn" onclick="feedbackMessage('${msgId}', 'down', this)" title="Mala respuesta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+          </button>
+        </div>
+      `;
+
+      row.innerHTML = `
+        <div class="message-inner">
+          <div class="message-avatar">${initials}</div>
+          <div class="message-content">
+            <div class="message-header">
+              <div class="message-sender">${senderName}</div>
+              <span class="message-timestamp">${timestamp}</span>
+            </div>
+            <div class="message-body">${bodyHtml}</div>
+            ${actionsHtml}
+          </div>
+        </div>
+      `;
+
+      container.appendChild(row);
+      scrollToBottom();
+    }
+
+    function copyMessage(btn) {
+      const body = btn.closest('.message-content').querySelector('.message-body');
+      const text = body.innerText || body.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => { btn.innerHTML = origHtml; }, 1500);
+      });
+    }
+
+    function feedbackMessage(msgId, direction, btn) {
+      const row = document.querySelector(`[data-msg-id="${msgId}"]`);
+      if (!row) return;
+      const actions = row.querySelectorAll('.msg-action-btn');
+
+      // Remove previous feedback classes
+      actions.forEach(a => a.classList.remove('active-up', 'active-down'));
+
+      if (state.feedbacks[msgId] === direction) {
+        delete state.feedbacks[msgId];
+      } else {
+        state.feedbacks[msgId] = direction;
+        btn.classList.add(direction === 'up' ? 'active-up' : 'active-down');
+      }
+    }
+
+    /* ================================================================
+       STATUS TIMELINE
+       ================================================================ */
+    function addStatus(text) {
+      const container = $('#messages');
+      let timelineContainer = container.querySelector('.status-timeline-container.active');
+
+      if (!timelineContainer) {
+        timelineContainer = document.createElement('div');
+        timelineContainer.className = 'status-timeline-container active';
+        timelineContainer.innerHTML = `
+          <div class="status-timeline-inner">
+            <div class="status-timeline"></div>
+          </div>
+        `;
+        container.appendChild(timelineContainer);
+      }
+
+      const timeline = timelineContainer.querySelector('.status-timeline');
+
+      // Mark previous steps as done
+      timeline.querySelectorAll('.status-step:not(.done)').forEach(s => s.classList.add('done'));
+
+      const step = document.createElement('div');
+      step.className = 'status-step';
+      step.innerHTML = `
+        <div class="status-step-icon">
+          <div class="step-spinner"></div>
+          <div class="step-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        </div>
+        <span class="status-step-text">${escapeHtml(text)}</span>
+      `;
+      timeline.appendChild(step);
+      scrollToBottom();
+    }
+
+    function finishStatuses() {
+      document.querySelectorAll('.status-timeline-container.active').forEach(tc => {
+        tc.querySelectorAll('.status-step:not(.done)').forEach(s => s.classList.add('done'));
+        tc.classList.remove('active');
+      });
+    }
+
+    function scrollToBottom() {
+      const msgs = $('#messages');
+      requestAnimationFrame(() => {
+        msgs.scrollTop = msgs.scrollHeight;
+      });
+    }
+
+    /* ================================================================
+       ARTIFACTS
+       ================================================================ */
+    function detectArtifactType(title, html) {
+      const lowerTitle = (title || '').toLowerCase();
+      if (lowerTitle.includes('presentacion') || lowerTitle.includes('presentation') || lowerTitle.includes('slide')) {
+        return 'presentation';
+      }
+      if (html && html.includes('class="slide"')) {
+        return 'presentation';
+      }
+      return 'dashboard';
+    }
+
+    function addArtifact(title, html, type) {
+      const id = state.artifacts.length;
+      const detectedType = type || detectArtifactType(title, html);
+      state.artifacts.push({ id, title, html, type: detectedType });
+
+      addArtifactCard(title, id, detectedType);
+      updateArtifactsSidebar();
+      updateArtifactToggle();
+      showArtifact(id);
+    }
+
+    function addArtifactCard(title, artifactId, type) {
+      const container = $('#messages');
+      const row = document.createElement('div');
+      row.className = 'message-row assistant';
+
+      const iconSvg = type === 'presentation'
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+
+      const subtitle = type === 'presentation'
+        ? 'Haz clic para ver la presentacion'
+        : 'Haz clic para ver el dashboard interactivo';
+
+      row.innerHTML = `
+        <div class="message-inner">
+          <div class="message-avatar">GW</div>
+          <div class="message-content">
+            <div class="artifact-card" onclick="showArtifact(${artifactId})">
+              <div class="artifact-card-icon">${iconSvg}</div>
+              <div class="artifact-card-text">
+                <div class="artifact-card-title">${escapeHtml(title)}</div>
+                <div class="artifact-card-subtitle">${subtitle}</div>
+              </div>
+              <div class="artifact-card-arrow">&#8250;</div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+      scrollToBottom();
+    }
+
+    function showArtifact(id) {
+      state.activeArtifact = id;
+      const artifact = state.artifacts[id];
+      if (!artifact) return;
+
+      // Switch to single view
+      switchArtifactView('single');
+
+      // Open panel
+      $('#artifactPanel').classList.add('open');
+
+      // Update tabs
+      updateArtifactItemsTabs();
+      updateArtifactsSidebar();
+
+      // Render iframe
+      renderArtifactIframe(artifact.html);
+
+      // Check for presentation
+      checkPresentation(artifact);
+    }
+
+    function renderArtifactIframe(html) {
+      const container = $('#artifactContent');
+      container.innerHTML = '';
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      iframe.srcdoc = html;
+      container.appendChild(iframe);
+    }
+
+    function checkPresentation(artifact) {
+      const nav = $('#presentationNav');
+      if (artifact.type === 'presentation' || (artifact.html && artifact.html.includes('class="slide"'))) {
+        state.presSlideIndex = 0;
+        // Wait for iframe to load to count slides
+        const iframe = $('#artifactContent iframe');
+        if (iframe) {
+          iframe.addEventListener('load', () => {
+            try {
+              const slides = iframe.contentDocument.querySelectorAll('.slide');
+              state.presTotalSlides = slides.length;
+              if (state.presTotalSlides > 1) {
+                nav.classList.add('visible');
+                updatePresNav();
+                showSlide(0);
+              } else {
+                nav.classList.remove('visible');
+              }
+            } catch {
+              nav.classList.remove('visible');
+            }
+          });
+        }
+      } else {
+        nav.classList.remove('visible');
+      }
+    }
+
+    function showSlide(index) {
+      const iframe = $('#artifactContent iframe');
+      if (!iframe) return;
+      try {
+        const slides = iframe.contentDocument.querySelectorAll('.slide');
+        slides.forEach((s, i) => {
+          s.style.display = i === index ? '' : 'none';
+        });
+        state.presSlideIndex = index;
+        updatePresNav();
+      } catch (e) {}
+    }
+
+    function updatePresNav() {
+      $('#presNavCounter').textContent = (state.presSlideIndex + 1) + ' / ' + state.presTotalSlides;
+      $('#presNavPrev').disabled = state.presSlideIndex === 0;
+      $('#presNavNext').disabled = state.presSlideIndex >= state.presTotalSlides - 1;
+    }
+
+    function presNavPrev() {
+      if (state.presSlideIndex > 0) showSlide(state.presSlideIndex - 1);
+    }
+
+    function presNavNext() {
+      if (state.presSlideIndex < state.presTotalSlides - 1) showSlide(state.presSlideIndex + 1);
+    }
+
+    // Keyboard nav for presentations
+    $('#artifactPanel').addEventListener('keydown', (e) => {
+      if ($('#presentationNav').classList.contains('visible')) {
+        if (e.key === 'ArrowLeft') presNavPrev();
+        else if (e.key === 'ArrowRight') presNavNext();
+      }
+    });
+
+    function updateArtifactItemsTabs() {
+      const container = $('#artifactItemsTabs');
+      container.innerHTML = '';
+      state.artifacts.forEach((art, idx) => {
+        const tab = document.createElement('button');
+        tab.className = 'artifact-item-tab' + (idx === state.activeArtifact ? ' active' : '');
+        tab.textContent = art.title;
+        tab.onclick = () => showArtifact(idx);
+        container.appendChild(tab);
+      });
+    }
+
+    function updateArtifactsSidebar() {
+      const container = $('#sidebarArtifacts');
+      const section = $('#sidebarArtifactsSection');
+      if (state.artifacts.length === 0) {
+        section.classList.remove('has-items');
+        container.innerHTML = '';
+        return;
+      }
+      section.classList.add('has-items');
+      container.innerHTML = '';
+      state.artifacts.forEach((art, idx) => {
+        const item = document.createElement('button');
+        item.className = 'sidebar-artifact-item' + (idx === state.activeArtifact ? ' active' : '');
+
+        const iconSvg = art.type === 'presentation'
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+
+        item.innerHTML = '<span class="art-icon">' + iconSvg + '</span><span class="art-title">' + escapeHtml(art.title) + '</span>';
+        item.onclick = () => { showArtifact(idx); closeSidebar(); };
+        container.appendChild(item);
+      });
+    }
+
+    function updateArtifactToggle() {
+      const btn = $('#artifactToggleBtn');
+      const badge = $('#artifactBadge');
+      const count = state.artifacts.length;
+      badge.textContent = count;
+      if (count > 0) {
+        btn.classList.add('has-artifacts');
+      } else {
+        btn.classList.remove('has-artifacts');
+      }
+    }
+
+    function toggleArtifactPanel() {
+      const panel = $('#artifactPanel');
+      if (panel.classList.contains('open')) {
+        closeArtifactPanel();
+      } else if (state.artifacts.length > 0) {
+        showArtifact(state.activeArtifact >= 0 ? state.activeArtifact : 0);
+      }
+    }
+
+    function closeArtifactPanel() {
+      $('#artifactPanel').classList.remove('open');
+      $('#presentationNav').classList.remove('visible');
+    }
+
+    /* ================================================================
+       ARTIFACT PANEL VIEWS (Single / Workspace)
+       ================================================================ */
+    function switchArtifactView(view) {
+      state.currentView = view;
+      const singleContainer = $('#artifactContent');
+      const workspaceView = $('#workspaceView');
+      const tabsRow = $('#artifactItemsTabs');
+      const presNav = $('#presentationNav');
+
+      // Update view tabs
+      $$('.artifact-view-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.view === view);
+      });
+
+      if (view === 'workspace') {
+        singleContainer.style.display = 'none';
+        workspaceView.classList.add('active');
+        tabsRow.style.display = 'none';
+        presNav.classList.remove('visible');
+        renderWorkspace();
+      } else {
+        singleContainer.style.display = '';
+        workspaceView.classList.remove('active');
+        tabsRow.style.display = '';
+        // Re-render active artifact
+        if (state.activeArtifact >= 0 && state.artifacts[state.activeArtifact]) {
+          renderArtifactIframe(state.artifacts[state.activeArtifact].html);
+          checkPresentation(state.artifacts[state.activeArtifact]);
+        }
+      }
+    }
+
+    function renderWorkspace() {
+      const ws = $('#workspaceView');
+
+      if (state.artifacts.length === 0) {
+        ws.innerHTML = `
+          <div class="workspace-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+            <p>No hay artefactos generados aun</p>
+          </div>
+        `;
+        return;
+      }
+
+      let cardsHtml = '';
+      state.artifacts.forEach((art, idx) => {
+        const iconSvg = art.type === 'presentation'
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+
+        cardsHtml += `
+          <div class="workspace-card" onclick="showArtifactFromWorkspace(${idx})">
+            <div class="workspace-card-preview">
+              <iframe srcdoc="${escapeHtml(art.html)}" sandbox="allow-scripts" loading="lazy"></iframe>
+            </div>
+            <div class="workspace-card-info">
+              <div class="workspace-card-icon">${iconSvg}</div>
+              <div class="workspace-card-title">${escapeHtml(art.title)}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      ws.innerHTML = `
+        <div class="workspace-header">
+          <div class="workspace-title">Workspace (${state.artifacts.length})</div>
+          <button class="workspace-export-btn" onclick="exportWorkspace()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar todo
+          </button>
+        </div>
+        <div class="workspace-grid">${cardsHtml}</div>
+      `;
+    }
+
+    function showArtifactFromWorkspace(idx) {
+      showArtifact(idx);
+    }
+
+    /* ================================================================
+       EXPORT FUNCTIONS
+       ================================================================ */
+    function toggleExportDropdown(e) {
+      e.stopPropagation();
+      const dd = $('#exportDropdown');
+      dd.classList.toggle('open');
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', () => {
+      const dd = $('#exportDropdown');
+      if (dd) dd.classList.remove('open');
+    });
+
+    function exportArtifactPNG(e) {
+      e.stopPropagation();
+      $('#exportDropdown').classList.remove('open');
+
+      const iframe = $('#artifactContent iframe');
+      if (!iframe) return;
+
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        html2canvas(iframeDoc.body, { useCORS: true, scale: 2 }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = (state.artifacts[state.activeArtifact]?.title || 'artifact') + '.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        }).catch(err => {
+          console.error('Export failed:', err);
+          alert('No se pudo exportar. Intente con Imprimir/PDF.');
+        });
+      } catch (err) {
+        console.error('Export failed (cross-origin):', err);
+        alert('No se pudo exportar. Intente con Imprimir/PDF.');
+      }
+    }
+
+    function exportArtifactPrint(e) {
+      e.stopPropagation();
+      $('#exportDropdown').classList.remove('open');
+
+      const iframe = $('#artifactContent iframe');
+      if (!iframe) return;
+
+      try {
+        iframe.contentWindow.print();
+      } catch {
+        // Fallback: open in new window
+        const w = window.open('', '_blank');
+        w.document.write(state.artifacts[state.activeArtifact]?.html || '');
+        w.document.close();
+        w.print();
+      }
+    }
+
+    async function exportWorkspace() {
+      if (state.artifacts.length === 0) return;
+
+      // Create a temporary container for all artifacts
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;padding:40px;';
+      document.body.appendChild(container);
+
+      container.innerHTML = '<h1 style="font-family:Inter,sans-serif;font-size:24px;margin-bottom:24px;color:#11131C;">GPTW Sales - Workspace Export</h1>';
+
+      for (const art of state.artifacts) {
+        const section = document.createElement('div');
+        section.style.cssText = 'margin-bottom:32px;page-break-inside:avoid;';
+        section.innerHTML = `<h2 style="font-family:Inter,sans-serif;font-size:16px;margin-bottom:12px;color:#11131C;">${escapeHtml(art.title)}</h2>`;
+
+        const frame = document.createElement('iframe');
+        frame.srcdoc = art.html;
+        frame.style.cssText = 'width:100%;height:400px;border:1px solid #e5e7eb;border-radius:8px;';
+        section.appendChild(frame);
+        container.appendChild(section);
+      }
+
+      // Wait for iframes to load
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      try {
+        const canvas = await html2canvas(container, { useCORS: true, scale: 1.5 });
+        const link = document.createElement('a');
+        link.download = 'gptw-workspace-export.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error('Workspace export failed:', err);
+        // Fallback: open print dialog
+        const w = window.open('', '_blank');
+        w.document.write(`
+          <html><head><title>GPTW Workspace Export</title>
+          <style>body{font-family:Inter,sans-serif;padding:40px}h1{margin-bottom:24px}
+          .art{margin-bottom:32px;page-break-inside:avoid}
+          iframe{width:100%;height:400px;border:1px solid #e5e7eb;border-radius:8px}</style></head><body>
+          <h1>GPTW Sales - Workspace Export</h1>
+        `);
+        state.artifacts.forEach(art => {
+          w.document.write(`<div class="art"><h2>${escapeHtml(art.title)}</h2><iframe srcdoc="${escapeHtml(art.html)}"></iframe></div>`);
+        });
+        w.document.write('</body></html>');
+        w.document.close();
+        setTimeout(() => w.print(), 1000);
+      }
+
+      document.body.removeChild(container);
+    }
+
+    /* ================================================================
+       QUOTA
+       ================================================================ */
+    function updateQuota() {
+      const pct = (state.questionCount / MAX_QUESTIONS) * 100;
+      $('#quotaText').textContent = state.questionCount + ' / ' + MAX_QUESTIONS;
+      const fill = $('#quotaFill');
+      fill.style.width = pct + '%';
+      fill.classList.remove('warning', 'danger');
+      if (pct >= 80) fill.classList.add('danger');
+      else if (pct >= 60) fill.classList.add('warning');
+    }
+
+    function showQuotaModal() {
+      $('#quotaModal').classList.add('visible');
+    }
+
+    function hideQuotaModal() {
+      $('#quotaModal').classList.remove('visible');
+    }
+
+    $('#quotaModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) hideQuotaModal();
+    });
+
+    /* ================================================================
+       RESET CHAT
+       ================================================================ */
+    function resetChat() {
+      hideQuotaModal();
+
+      if (state.eventSource) {
+        state.eventSource.close();
+        state.eventSource = null;
+      }
+
+      state.questionCount = 0;
+      state.artifacts = [];
+      state.activeArtifact = -1;
+      state.isWaiting = false;
+      state.feedbacks = {};
+      state.presSlideIndex = 0;
+      state.presTotalSlides = 0;
+      state.chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+      updateQuota();
+      updateArtifactToggle();
+      updateArtifactsSidebar();
+      closeArtifactPanel();
+      chatInput.disabled = false;
+      updateSendBtn();
+
+      const msgs = $('#messages');
+      msgs.innerHTML = '';
+
+      const firstName = state.userName ? state.userName.split(' ')[0] : '';
+      const welcomeDiv = document.createElement('div');
+      welcomeDiv.className = 'welcome';
+      welcomeDiv.id = 'welcome';
+      welcomeDiv.innerHTML = `
+        <div class="welcome-icon">GW</div>
+        <h2>Hola${firstName ? ', ' + escapeHtml(firstName) : ''}</h2>
+        <p>Soy tu asistente de ventas de Great Place to Work. Puedo consultar datos de Salesforce, generar reportes y dashboards para ayudarte a tomar mejores decisiones.</p>
+        <div class="suggestions">
+          <button class="suggestion" onclick="sendQuickAction('¿Como van las ventas este mes?')">
+            <div class="suggestion-title">Ventas del mes</div>
+            <div class="suggestion-desc">Resumen de oportunidades cerradas este mes</div>
+          </button>
+          <button class="suggestion" onclick="sendQuickAction('¿Cuantas oportunidades abiertas tenemos?')">
+            <div class="suggestion-title">Pipeline actual</div>
+            <div class="suggestion-desc">Oportunidades abiertas y su estado</div>
+          </button>
+          <button class="suggestion" onclick="sendQuickAction('¿Quien es el mejor vendedor este trimestre?')">
+            <div class="suggestion-title">Top vendedores</div>
+            <div class="suggestion-desc">Ranking de vendedores por rendimiento</div>
+          </button>
+          <button class="suggestion" onclick="sendQuickAction('Genera un dashboard completo de ventas con graficas')">
+            <div class="suggestion-title">Dashboard completo</div>
+            <div class="suggestion-desc">Visualizacion completa con KPIs y graficas</div>
+          </button>
+        </div>
+      `;
+      msgs.appendChild(welcomeDiv);
+
+      closeSidebar();
+      chatInput.focus();
+    }
+
+    /* ================================================================
+       SIDEBAR (MOBILE)
+       ================================================================ */
+    function openSidebar() {
+      $('#sidebar').classList.add('mobile-open');
+      $('#sidebarOverlay').classList.add('visible');
+    }
+
+    function closeSidebar() {
+      $('#sidebar').classList.remove('mobile-open');
+      $('#sidebarOverlay').classList.remove('visible');
+    }
+  </script>
+</body>
+</html>
