@@ -66,10 +66,10 @@ Lead → Account + Contact → Opportunity → Quote (ODS) → Invoice__c (Factu
 | `Amount` | Monto en MXN (o USD si CurrencyIsoCode='USD') | |
 | `CloseDate` | Fecha de cierre | |
 | `Unidad_de_Negocio__c` | Linea de producto principal | `Encuesta`, `Formacion Online`, `Consultoria`, `Formacion OffLine`, `Emprising` |
-| `Segmento_de_Negocio__c` | Segmento por tamano de empresa | `LDN 1` (50-500 nac), `LDN 2` (501-5000), `LDN 3` (+5000), `LDN 4` (10-49), `Go Flow`, `Adicionales` |
-| `Tipo_de_venta__c` | Tipo de venta | `Nuevo`, `Renovacion`, `Adicional` |
-| `Sem_foro__c` | Estado de gestion | `Verde`, `Amarillo`, `Rojo`, `Azul` |
-| `Motivo_de_perdida__c` | Razon de perdida | `Sin respuesta`, `Falta de presupuesto`, `No es el momento adecuado`, `Competencia`, etc. |
+| `Segm_Neg__c` | Segmento por tamano de empresa | `LDN 1` (50-500 nac), `LDN 2` (501-5000), `LDN 3` (+5000), `LDN 4` (10-49), `Go Flow`, `Adicionales` |
+| `Estatus_anual__c` | Tipo de venta | `Nuevo`, `Renovacion`, `Adicional` |
+| `Sem_foro_de_gesti_n__c` | Estado de gestion | `Verde`, `Amarillo`, `Rojo`, `Azul` |
+| `Razon_de__c` | Razon de perdida | `Sin respuesta`, `Falta de presupuesto`, `No es el momento adecuado`, `Competencia`, etc. |
 | `Pais_de_Venta__c` | Pais | `Mexico` (95.6%), `Costa Rica`, `Estados Unidos`, etc. |
 | `Suscripcion__c` | Duracion del contrato | `1 ano`, `2 anos`, `3 anos` |
 | `Empresa_Certificada__c` | Si la empresa certifico | `Si`, `No` |
@@ -283,7 +283,7 @@ SELECT Owner.Name, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE Stage
 
 ### Ventas por segmento/LDN
 ```sql
-SELECT Segmento_de_Negocio__c, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR GROUP BY Segmento_de_Negocio__c
+SELECT Segm_Neg__c, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR GROUP BY Segm_Neg__c
 ```
 
 ### Cuentas en riesgo de churn
@@ -319,7 +319,7 @@ SELECT COUNT(Id) FROM Opportunity WHERE StageName = 'Perdida' AND CloseDate = TH
 
 ### Semaforo comercial
 ```sql
-SELECT Sem_foro__c, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') GROUP BY Sem_foro__c
+SELECT Sem_foro_de_gesti_n__c, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') GROUP BY Sem_foro_de_gesti_n__c
 ```
 
 ### Oportunidades de un ejecutivo

@@ -7,16 +7,17 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { generateAllReports, type ReportCache } from "./reports";
 
 // ─── Config ────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.GPTW_BOT_PORT ?? "8787");
 const HOST = process.env.GPTW_BOT_HOST ?? "0.0.0.0";
 
 // ─── Salesforce REST API client (lightweight, no jsforce needed) ───────────
-const SF_USERNAME = process.env.SALESFORCE_USERNAME ?? "soporteGptwMx@salesforce.com";
-const SF_PASSWORD = process.env.SALESFORCE_PASSWORD ?? "Romanos1.16";
-const SF_TOKEN = process.env.SALESFORCE_TOKEN ?? "gqd267VpjwIwXNo7F4P5mdEa";
-const SF_INSTANCE_URL = process.env.SALESFORCE_INSTANCE_URL ?? "https://greatplacetoworkmexico.my.salesforce.com";
+const SF_USERNAME = process.env.SALESFORCE_USERNAME ?? "";
+const SF_PASSWORD = process.env.SALESFORCE_PASSWORD ?? "";
+const SF_TOKEN = process.env.SALESFORCE_TOKEN ?? "";
+const SF_INSTANCE_URL = process.env.SALESFORCE_INSTANCE_URL ?? "";
 
 let sfAccessToken = "";
 let sfInstanceUrl = SF_INSTANCE_URL;
@@ -131,6 +132,42 @@ async function sfSearch(searchTerm: string): Promise<any> {
 
   return res.json();
 }
+
+// ─── Report Cache & Scheduler (4am Mexico City = UTC-6) ──────────────────
+let reportsCache: ReportCache[] = [];
+let reportsGenerating = false;
+
+async function refreshReports() {
+  if (reportsGenerating) return;
+  reportsGenerating = true;
+  const start = Date.now();
+  try {
+    if (!sfAccessToken) await sfLogin();
+    reportsCache = await generateAllReports(sfQuery);
+    process.stderr.write(`[reports] Generated ${reportsCache.length} reports in ${((Date.now() - start) / 1000).toFixed(1)}s\n`);
+  } catch (err: any) {
+    process.stderr.write(`[reports] Error: ${err.message}\n`);
+  } finally {
+    reportsGenerating = false;
+  }
+}
+
+// Schedule at 4am Mexico City (UTC-6) = 10:00 UTC
+function scheduleNextRun() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCHours(10, 0, 0, 0); // 4am Mexico = 10am UTC
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next.getTime() - now.getTime();
+  setTimeout(async () => {
+    await refreshReports();
+    scheduleNextRun(); // schedule next day
+  }, delay);
+  process.stderr.write(`[reports] Next refresh at ${next.toISOString()} (in ${(delay / 3600000).toFixed(1)}h)\n`);
+}
+
+// Generate on startup (after 10s to let SF login settle) + schedule daily
+setTimeout(() => { refreshReports(); scheduleNextRun(); }, 10000);
 
 // ─── SSE connections per chat_id ───────────────────────────────────────────
 const sseClients = new Map<string, Set<(data: string) => void>>();
@@ -518,6 +555,29 @@ Bun.serve({
       broadcastToChat(chatId, "done", { message: "Solicitud cancelada por el usuario." });
 
       return Response.json({ ok: true, cancelled: true });
+    }
+
+    // Serve pre-cached reports list
+    if (req.method === "GET" && url.pathname === "/reports") {
+      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const list = reportsCache.map(r => ({ id: r.id, title: r.title, icon: r.icon, summary: r.summary, generatedAt: r.generatedAt }));
+      return Response.json({ reports: list, generating: reportsGenerating });
+    }
+
+    // Serve individual report HTML
+    if (req.method === "GET" && url.pathname.startsWith("/reports/")) {
+      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const reportId = url.pathname.split("/reports/")[1];
+      const report = reportsCache.find(r => r.id === reportId);
+      if (!report) return Response.json({ error: "Report not found" }, { status: 404 });
+      return Response.json(report);
+    }
+
+    // Force refresh reports
+    if (req.method === "POST" && url.pathname === "/reports/refresh") {
+      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      refreshReports(); // async, don't await
+      return Response.json({ ok: true, message: "Refresh started" });
     }
 
     if (req.method === "GET" && url.pathname === "/health") {

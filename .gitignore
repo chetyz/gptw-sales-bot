@@ -1,0 +1,11 @@
+node_modules/
+bun.lock
+.env
+.env.local
+.env.*.local
+.credentials.json
+.claude/
+*.log
+.DS_Store
+dist/
+build/

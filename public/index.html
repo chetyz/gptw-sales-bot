@@ -16,24 +16,19 @@
       --gptw-red-hover: #e01222;
       --gptw-red-light: #FF8B97;
       --gptw-red-bg: #fff1f2;
-      --gptw-blue: #398ffc;
-      --gptw-blue-light: #e8f2ff;
       --gptw-dark: #11131C;
       --bg-primary: #ffffff;
-      --bg-secondary: #f7f7f8;
+      --bg-page: #F7F8FA;
       --bg-tertiary: #ececf1;
-      --bg-sidebar: #11131C;
-      --bg-sidebar-hover: #1f2937;
-      --bg-sidebar-active: #374151;
       --text-primary: #111827;
-      --text-secondary: #6b7280;
+      --text-secondary: #6B7280;
       --text-muted: #9ca3af;
-      --text-sidebar: #d1d5db;
-      --text-sidebar-bright: #f9fafb;
-      --border: #e5e7eb;
+      --border: #E5E7EB;
       --border-light: #f3f4f6;
-      --green: #22c55e;
+      --green: #10B981;
       --green-bg: #f0fdf4;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-card-hover: 0 10px 25px rgba(0,0,0,0.08);
       --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
       --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
       --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
@@ -41,17 +36,15 @@
       --radius-sm: 8px;
       --radius-md: 12px;
       --radius-lg: 16px;
-      --radius-xl: 24px;
-      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      --sidebar-width: 280px;
-      --artifact-width: 50%;
+      --transition: 0.2s ease;
+      --sidebar-w: 60px;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-page);
       height: 100vh;
       overflow: hidden;
       color: var(--text-primary);
@@ -95,11 +88,8 @@
       align-items: center;
       justify-content: center;
       margin: 0 auto 24px;
-      font-size: 28px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: -1px;
     }
+    .login-logo svg { width: 32px; height: 32px; color: #fff; }
     .login-card h1 {
       font-size: 24px;
       font-weight: 700;
@@ -131,7 +121,7 @@
       font-size: 14px;
       transition: border-color var(--transition);
       outline: none;
-      background: var(--bg-secondary);
+      background: var(--bg-page);
     }
     .login-field input:focus {
       border-color: var(--gptw-red);
@@ -170,240 +160,501 @@
     }
     .app.visible { opacity: 1; }
 
-    /* ── Sidebar ── */
+    /* ================================================================
+       SIDEBAR (60px icon rail)
+       ================================================================ */
     .sidebar {
-      width: var(--sidebar-width);
-      background: var(--bg-sidebar);
+      width: var(--sidebar-w);
+      background: var(--gptw-dark);
       display: flex;
       flex-direction: column;
+      align-items: center;
       flex-shrink: 0;
-      overflow: hidden;
-      transition: transform var(--transition);
-    }
-    .sidebar-header {
-      padding: 20px 20px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 12px 0;
+      z-index: 100;
     }
     .sidebar-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .sidebar-brand-icon {
       width: 36px;
       height: 36px;
       background: var(--gptw-red);
-      border-radius: 8px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 14px;
-      color: #fff;
-      letter-spacing: -0.5px;
+      margin-bottom: 24px;
       flex-shrink: 0;
     }
-    .sidebar-brand-text {
+    .sidebar-brand svg { width: 20px; height: 20px; color: #fff; }
+    .sidebar-nav {
       display: flex;
       flex-direction: column;
+      gap: 4px;
+      flex: 1;
     }
-    .sidebar-brand-text strong {
-      color: var(--text-sidebar-bright);
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .sidebar-brand-text span {
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 500;
-    }
-    .sidebar-new-chat {
-      margin: 16px 16px 8px;
-      padding: 10px 16px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: var(--radius-sm);
-      color: var(--text-sidebar);
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: background var(--transition);
-    }
-    .sidebar-new-chat:hover { background: rgba(255,255,255,0.1); }
-    .sidebar-new-chat svg { width: 16px; height: 16px; }
-
-    /* Quick Actions */
-    .sidebar-section-title {
-      padding: 16px 20px 8px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-    }
-    .quick-actions {
-      padding: 0 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .quick-action {
-      padding: 9px 12px;
-      border-radius: var(--radius-sm);
-      color: var(--text-sidebar);
-      font-size: 13px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background var(--transition);
+    .sidebar-nav-btn {
+      width: 44px;
+      height: 44px;
       border: none;
       background: transparent;
-      font-family: inherit;
-      text-align: left;
-      width: 100%;
-    }
-    .quick-action:hover { background: var(--bg-sidebar-hover); }
-    .quick-action .qa-icon {
-      width: 18px;
-      height: 18px;
+      border-radius: 10px;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
+      color: #6B7280;
+      transition: all var(--transition);
+      position: relative;
     }
-
-    /* Artifacts List in Sidebar */
-    .sidebar-artifacts-section { display: none; }
-    .sidebar-artifacts-section.has-items { display: block; }
-    .sidebar-artifacts {
-      padding: 0 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      max-height: 180px;
-      overflow-y: auto;
+    .sidebar-nav-btn:hover { color: #d1d5db; background: rgba(255,255,255,0.06); }
+    .sidebar-nav-btn.active {
+      color: var(--gptw-red);
+      background: rgba(255,22,40,0.15);
     }
-    .sidebar-artifacts::-webkit-scrollbar { width: 4px; }
-    .sidebar-artifacts::-webkit-scrollbar-track { background: transparent; }
-    .sidebar-artifacts::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-    .sidebar-artifact-item {
-      padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      color: var(--text-sidebar);
-      font-size: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: background var(--transition);
-      border: none;
-      background: transparent;
-      font-family: inherit;
-      text-align: left;
-      width: 100%;
+    .sidebar-nav-btn.active::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 8px;
+      bottom: 8px;
+      width: 3px;
+      background: var(--gptw-red);
+      border-radius: 0 3px 3px 0;
     }
-    .sidebar-artifact-item:hover { background: var(--bg-sidebar-hover); }
-    .sidebar-artifact-item.active { background: var(--bg-sidebar-active); color: var(--text-sidebar-bright); }
-    .sidebar-artifact-item .art-icon {
-      flex-shrink: 0;
+    .sidebar-nav-btn svg { width: 22px; height: 22px; }
+    .sidebar-nav-btn .nav-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
       width: 16px;
       height: 16px;
+      background: var(--gptw-red);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-    .sidebar-artifact-item .art-icon svg { width: 14px; height: 14px; }
-    .sidebar-artifact-item .art-title {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .sidebar-spacer { flex: 1; }
 
-    /* Quota */
-    .sidebar-quota {
-      padding: 16px 20px;
-      border-top: 1px solid rgba(255,255,255,0.08);
-    }
-    .quota-label {
+    /* Quota circle */
+    .sidebar-quota-wrap {
       display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--text-muted);
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
       margin-bottom: 8px;
     }
-    .quota-label span:last-child {
-      color: var(--text-sidebar);
-      font-weight: 600;
-    }
-    .quota-bar {
-      height: 6px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .quota-fill {
-      height: 100%;
-      background: var(--gptw-red);
-      border-radius: 3px;
-      transition: width 0.5s ease;
-    }
-    .quota-fill.warning { background: #f59e0b; }
-    .quota-fill.danger { background: #ef4444; }
-
-    /* User Info */
-    .sidebar-user {
-      padding: 16px 20px;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .user-avatar {
+    .quota-circle {
       width: 36px;
       height: 36px;
-      border-radius: 50%;
-      background: var(--gptw-red);
+      position: relative;
+    }
+    .quota-circle svg { width: 36px; height: 36px; transform: rotate(-90deg); }
+    .quota-circle-bg { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 3; }
+    .quota-circle-fill { fill: none; stroke: var(--gptw-red); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+    .quota-circle-fill.warning { stroke: #f59e0b; }
+    .quota-circle-fill.danger { stroke: #ef4444; }
+    .quota-circle-text {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      font-size: 9px;
       font-weight: 700;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
-    .user-info { overflow: hidden; }
-    .user-name {
-      color: var(--text-sidebar-bright);
-      font-size: 13px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .user-role {
-      color: var(--text-muted);
-      font-size: 11px;
+      color: #d1d5db;
     }
 
-    /* ── Main Content ── */
+    .sidebar-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #d1d5db;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: default;
+      margin-bottom: 4px;
+    }
+
+    /* ================================================================
+       MAIN CONTENT AREA
+       ================================================================ */
     .main {
       flex: 1;
       display: flex;
       flex-direction: column;
       min-width: 0;
       position: relative;
+      overflow: hidden;
     }
 
-    /* Top bar */
-    .topbar {
+    /* ================================================================
+       VIEW: HOME
+       ================================================================ */
+    .view { display: none; flex-direction: column; height: 100%; }
+    .view.active { display: flex; }
+
+    .home-view { overflow-y: auto; background: var(--bg-page); }
+    .home-header {
+      padding: 40px 40px 0;
+      max-width: 1200px;
+    }
+    .home-greeting {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .home-subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .home-date {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+      padding: 28px 40px 40px;
+      max-width: 1200px;
+    }
+    .home-card {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 24px;
+      cursor: pointer;
+      transition: box-shadow var(--transition), transform var(--transition);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .home-card:hover {
+      box-shadow: var(--shadow-card-hover);
+      transform: translateY(-2px);
+    }
+    .home-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .home-card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .home-card-icon svg { width: 22px; height: 22px; }
+    .home-card-icon.red { background: var(--gptw-red-bg); color: var(--gptw-red); }
+    .home-card-icon.blue { background: #eff6ff; color: #3b82f6; }
+    .home-card-icon.green { background: #f0fdf4; color: var(--green); }
+    .home-card-icon.orange { background: #fff7ed; color: #f97316; }
+    .home-card-icon.purple { background: #faf5ff; color: #a855f7; }
+    .home-card-icon.teal { background: #f0fdfa; color: #14b8a6; }
+    .home-card-icon.pink { background: #fdf2f8; color: #ec4899; }
+    .home-card-meta { flex: 1; min-width: 0; }
+    .home-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+      line-height: 1.3;
+    }
+    .home-card-summary {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .home-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 20px;
+      background: #f0fdf4;
+      color: var(--green);
+      margin-top: 12px;
+    }
+    .home-card-badge svg { width: 12px; height: 12px; }
+    .home-loading {
+      padding: 60px 40px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .home-loading .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--gptw-red);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    /* ================================================================
+       VIEW: REPORT (fullscreen iframe)
+       ================================================================ */
+    .report-view { background: var(--bg-page); }
+    .report-header {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 24px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .report-back-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .report-back-btn:hover { border-color: var(--gptw-red); color: var(--gptw-red); }
+    .report-back-btn svg { width: 16px; height: 16px; }
+    .report-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .report-action-btn {
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all var(--transition);
+    }
+    .report-action-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+    .report-action-btn svg { width: 14px; height: 14px; }
+    .report-iframe-wrap {
+      flex: 1;
+      padding: 0;
+      overflow: hidden;
+    }
+    .report-iframe-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
+    /* ================================================================
+       FLOATING CHAT (report view)
+       ================================================================ */
+    .floating-chat-btn {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 52px;
+      height: 52px;
+      background: var(--gptw-red);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(255,22,40,0.35);
+      transition: transform var(--transition), box-shadow var(--transition);
+      z-index: 500;
+    }
+    .floating-chat-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 24px rgba(255,22,40,0.4);
+    }
+    .floating-chat-btn svg { width: 24px; height: 24px; color: #fff; }
+    .floating-chat-btn.hidden-fc { display: none; }
+
+    .floating-chat-panel {
+      position: fixed;
+      bottom: 92px;
+      right: 28px;
+      width: 380px;
+      height: 520px;
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      z-index: 500;
+      overflow: hidden;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(16px) scale(0.96);
+      transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    }
+    .floating-chat-panel.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+    .fc-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .fc-header-icon {
+      width: 32px; height: 32px;
+      background: var(--gptw-red-bg);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gptw-red);
+    }
+    .fc-header-icon svg { width: 16px; height: 16px; }
+    .fc-header-text {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .fc-close-btn {
+      width: 28px; height: 28px;
+      border: none; background: transparent;
+      border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted);
+      transition: all var(--transition);
+    }
+    .fc-close-btn:hover { background: var(--bg-page); color: var(--text-secondary); }
+    .fc-close-btn svg { width: 16px; height: 16px; }
+    .fc-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .fc-messages::-webkit-scrollbar { width: 4px; }
+    .fc-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .fc-msg {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      animation: msgIn 0.2s ease;
+    }
+    .fc-msg.user {
+      align-self: flex-end;
+      background: var(--gptw-dark);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .fc-msg.assistant {
+      align-self: flex-start;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+    }
+    .fc-msg.assistant p { margin-bottom: 6px; }
+    .fc-msg.assistant p:last-child { margin-bottom: 0; }
+    .fc-msg.assistant table { font-size: 11px; }
+    .fc-msg.assistant table th { padding: 4px 6px; }
+    .fc-msg.assistant table td { padding: 3px 6px; }
+    .fc-msg.assistant a { color: var(--gptw-red); }
+    .fc-typing {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 14px;
+      align-self: flex-start;
+      background: var(--bg-page);
+      border-radius: 12px;
+      border-bottom-left-radius: 4px;
+    }
+    .fc-typing .dot {
+      width: 5px; height: 5px;
+      background: var(--gptw-red);
+      border-radius: 50%;
+      animation: typing-bounce 1.4s ease-in-out infinite;
+      opacity: 0.4;
+    }
+    .fc-typing .dot:nth-child(2) { animation-delay: 0.2s; }
+    .fc-typing .dot:nth-child(3) { animation-delay: 0.4s; }
+    .fc-input-wrap {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .fc-input {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      resize: none;
+      max-height: 80px;
+      transition: border-color var(--transition);
+    }
+    .fc-input:focus { border-color: var(--gptw-red); }
+    .fc-send-btn {
+      width: 38px; height: 38px;
+      background: var(--gptw-red);
+      border: none; border-radius: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background var(--transition);
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+    .fc-send-btn:hover { background: var(--gptw-red-hover); }
+    .fc-send-btn:disabled { background: var(--border); cursor: not-allowed; }
+    .fc-send-btn svg { width: 16px; height: 16px; color: #fff; }
+
+    /* ================================================================
+       VIEW: CHAT
+       ================================================================ */
+    .chat-view { background: var(--bg-primary); }
+    .chat-topbar {
       height: 52px;
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -413,51 +664,60 @@
       flex-shrink: 0;
       background: var(--bg-primary);
     }
-    .topbar-menu-btn {
+    .chat-topbar-menu {
       display: none;
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 6px;
-      border-radius: 6px;
-      color: var(--text-secondary);
+      background: none; border: none; cursor: pointer;
+      padding: 6px; border-radius: 6px; color: var(--text-secondary);
     }
-    .topbar-menu-btn:hover { background: var(--bg-tertiary); }
-    .topbar-menu-btn svg { width: 20px; height: 20px; }
-    .topbar-title {
+    .chat-topbar-menu:hover { background: var(--bg-tertiary); }
+    .chat-topbar-menu svg { width: 20px; height: 20px; }
+    .chat-topbar-title {
       font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
     }
-    .topbar-spacer { flex: 1; }
-    .topbar-artifact-toggle {
+    .chat-topbar-spacer { flex: 1; }
+    .chat-topbar-badge {
       display: none;
-      padding: 6px 14px;
+      padding: 5px 12px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
-      background: var(--bg-primary);
       font-family: inherit;
       font-size: 12px;
       font-weight: 500;
       color: var(--text-secondary);
       cursor: pointer;
-      transition: all var(--transition);
       align-items: center;
       gap: 6px;
+      background: #fff;
+      transition: all var(--transition);
     }
-    .topbar-artifact-toggle.has-artifacts { display: flex; }
-    .topbar-artifact-toggle:hover { background: var(--bg-secondary); border-color: var(--gptw-red); color: var(--gptw-red); }
-    .topbar-artifact-toggle .badge {
-      background: var(--gptw-red);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: 10px;
+    .chat-topbar-badge.has-artifacts { display: flex; }
+    .chat-topbar-badge:hover { border-color: var(--gptw-red); color: var(--gptw-red); }
+    .chat-topbar-badge .badge-count {
+      background: var(--gptw-red); color: #fff;
+      font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 10px;
     }
+    .chat-newchat-btn {
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all var(--transition);
+    }
+    .chat-newchat-btn:hover { border-color: var(--gptw-red); color: var(--gptw-red); }
+    .chat-newchat-btn svg { width: 14px; height: 14px; }
 
-    /* ── Chat Area ── */
-    .chat-wrapper {
+    .chat-body {
       flex: 1;
       display: flex;
       overflow: hidden;
@@ -467,7 +727,6 @@
       display: flex;
       flex-direction: column;
       min-width: 0;
-      transition: flex var(--transition);
     }
     .messages {
       flex: 1;
@@ -478,7 +737,6 @@
     .messages::-webkit-scrollbar { width: 6px; }
     .messages::-webkit-scrollbar-track { background: transparent; }
     .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .messages::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
     /* Welcome Screen */
     .welcome {
@@ -499,11 +757,9 @@
       align-items: center;
       justify-content: center;
       margin-bottom: 24px;
-      font-size: 32px;
       color: #fff;
-      font-weight: 800;
-      letter-spacing: -1px;
     }
+    .welcome-icon svg { width: 36px; height: 36px; }
     .welcome h2 {
       font-size: 28px;
       font-weight: 700;
@@ -610,9 +866,7 @@
       opacity: 0;
       transition: opacity 0.2s ease;
     }
-    .message-row:hover .message-timestamp {
-      opacity: 1;
-    }
+    .message-row:hover .message-timestamp { opacity: 1; }
     .message-body {
       font-size: 14.5px;
       line-height: 1.7;
@@ -622,10 +876,7 @@
     .message-body p { margin-bottom: 12px; }
     .message-body p:last-child { margin-bottom: 0; }
     .message-body strong { font-weight: 600; }
-    .message-body ul, .message-body ol {
-      margin: 8px 0;
-      padding-left: 24px;
-    }
+    .message-body ul, .message-body ol { margin: 8px 0; padding-left: 24px; }
     .message-body li { margin-bottom: 4px; }
     .message-body code {
       background: var(--bg-tertiary);
@@ -642,19 +893,12 @@
       overflow-x: auto;
       margin: 12px 0;
     }
-    .message-body pre code {
-      background: transparent;
-      padding: 0;
-      color: inherit;
-    }
+    .message-body pre code { background: transparent; padding: 0; color: inherit; }
     .message-body table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 13px;
+      width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px;
     }
     .message-body table th {
-      background: var(--bg-secondary);
+      background: var(--bg-page);
       padding: 10px 14px;
       text-align: left;
       font-weight: 600;
@@ -664,11 +908,8 @@
       padding: 8px 14px;
       border-bottom: 1px solid var(--border-light);
     }
-    .message-body table tr:hover td { background: var(--bg-secondary); }
-    .message-body a {
-      color: var(--gptw-red);
-      text-decoration: none;
-    }
+    .message-body table tr:hover td { background: var(--bg-page); }
+    .message-body a { color: var(--gptw-red); text-decoration: none; }
     .message-body a:hover { text-decoration: underline; }
     .message-body blockquote {
       border-left: 3px solid var(--gptw-red);
@@ -679,7 +920,7 @@
       color: var(--text-secondary);
     }
 
-    /* Message Actions (thumbs, copy) */
+    /* Message Actions */
     .message-actions {
       display: flex;
       gap: 4px;
@@ -703,7 +944,7 @@
       transition: all var(--transition);
     }
     .msg-action-btn:hover {
-      background: var(--bg-secondary);
+      background: var(--bg-page);
       border-color: var(--border);
       color: var(--text-secondary);
     }
@@ -712,11 +953,9 @@
     .msg-action-btn svg { width: 14px; height: 14px; }
 
     /* ================================================================
-       STATUS TIMELINE (replaces bouncing dots)
+       STATUS TIMELINE
        ================================================================ */
-    .status-timeline-container {
-      animation: msgIn 0.3s ease;
-    }
+    .status-timeline-container { animation: msgIn 0.3s ease; }
     .status-timeline-inner {
       max-width: 740px;
       margin: 0 auto;
@@ -725,7 +964,6 @@
     .status-timeline {
       display: flex;
       flex-direction: column;
-      gap: 0;
       position: relative;
       padding-left: 20px;
     }
@@ -751,16 +989,11 @@
       to { opacity: 1; transform: translateY(0); }
     }
     .status-step-icon {
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       position: absolute;
-      left: -20px;
-      top: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      left: -20px; top: 5px;
+      display: flex; align-items: center; justify-content: center;
     }
-    /* Typing indicator */
     .typing-indicator {
       display: flex;
       align-items: center;
@@ -768,8 +1001,7 @@
       padding: 8px 0;
     }
     .typing-indicator .dot {
-      width: 6px;
-      height: 6px;
+      width: 6px; height: 6px;
       background: var(--gptw-red);
       border-radius: 50%;
       animation: typing-bounce 1.4s ease-in-out infinite;
@@ -787,19 +1019,14 @@
       0%, 60%, 100% { opacity: 0.4; transform: translateY(0); }
       30% { opacity: 1; transform: translateY(-4px); }
     }
-
     .step-spinner {
-      width: 12px;
-      height: 12px;
+      width: 12px; height: 12px;
       border: 1.5px solid var(--border);
       border-top-color: var(--gptw-red);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
-    .step-check {
-      display: none;
-      color: var(--green);
-    }
+    .step-check { display: none; color: var(--green); }
     .step-check svg { width: 12px; height: 12px; }
     .status-step.done .step-spinner { display: none; }
     .status-step.done .step-check { display: flex; }
@@ -810,7 +1037,6 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Cancelled message */
     .cancelled-msg {
       font-size: 13px;
       color: var(--text-muted);
@@ -822,7 +1048,7 @@
     .artifact-card {
       margin: 12px 0;
       padding: 14px 18px;
-      background: var(--bg-secondary);
+      background: var(--bg-page);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       cursor: pointer;
@@ -837,22 +1063,15 @@
       transform: translateY(-1px);
     }
     .artifact-card-icon {
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       background: linear-gradient(135deg, var(--gptw-red), var(--gptw-red-light));
       border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
       color: #fff;
     }
     .artifact-card-icon svg { width: 20px; height: 20px; }
-    .artifact-card-text {
-      flex: 1;
-      min-width: 0;
-    }
+    .artifact-card-text { flex: 1; min-width: 0; }
     .artifact-card-title {
       font-size: 14px;
       font-weight: 600;
@@ -868,9 +1087,9 @@
     }
     .artifact-card-arrow {
       color: var(--text-muted);
-      font-size: 18px;
       flex-shrink: 0;
     }
+    .artifact-card-arrow svg { width: 16px; height: 16px; }
 
     /* ── Input Area ── */
     .input-area {
@@ -910,33 +1129,21 @@
       color: var(--text-primary);
     }
     .input-row textarea::placeholder { color: var(--text-muted); }
-
     .send-btn, .cancel-btn {
-      width: 40px;
-      height: 40px;
-      border: none;
-      border-radius: 10px;
+      width: 40px; height: 40px;
+      border: none; border-radius: 10px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       transition: all var(--transition);
-      flex-shrink: 0;
-      margin: 2px;
+      flex-shrink: 0; margin: 2px;
     }
-    .send-btn {
-      background: var(--gptw-red);
-    }
+    .send-btn { background: var(--gptw-red); }
     .send-btn:hover { background: var(--gptw-red-hover); }
     .send-btn:disabled { background: var(--border); cursor: not-allowed; }
     .send-btn svg { width: 18px; height: 18px; color: #fff; }
-
-    .cancel-btn {
-      background: var(--text-muted);
-    }
+    .cancel-btn { background: var(--text-muted); }
     .cancel-btn:hover { background: var(--text-secondary); }
     .cancel-btn svg { width: 18px; height: 18px; color: #fff; }
-
     .input-footer {
       text-align: center;
       padding-top: 8px;
@@ -947,7 +1154,7 @@
     }
 
     /* ================================================================
-       ARTIFACT PANEL
+       ARTIFACT PANEL (slide from right in chat view)
        ================================================================ */
     .artifact-panel {
       width: 0;
@@ -959,9 +1166,7 @@
       transition: width 0.3s ease;
       flex-shrink: 0;
     }
-    .artifact-panel.open {
-      width: var(--artifact-width);
-    }
+    .artifact-panel.open { width: 50%; }
     .artifact-panel-header {
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -975,43 +1180,20 @@
       padding: 0 12px 0 16px;
       gap: 8px;
     }
-    .artifact-view-tabs {
-      display: flex;
-      gap: 2px;
-      background: var(--bg-secondary);
-      border-radius: 8px;
-      padding: 3px;
-    }
-    .artifact-view-tab {
-      padding: 5px 14px;
-      border-radius: 6px;
-      border: none;
-      background: transparent;
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all var(--transition);
-    }
-    .artifact-view-tab:hover { color: var(--text-primary); }
-    .artifact-view-tab.active {
-      background: var(--bg-primary);
-      color: var(--text-primary);
+    .artifact-header-title {
+      font-size: 14px;
       font-weight: 600;
-      box-shadow: var(--shadow-sm);
+      color: var(--text-primary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .artifact-header-spacer { flex: 1; }
     .artifact-header-btn {
-      width: 32px;
-      height: 32px;
-      border: none;
-      background: transparent;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 32px; height: 32px;
+      border: none; background: transparent;
+      border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
       color: var(--text-secondary);
       transition: all var(--transition);
       flex-shrink: 0;
@@ -1020,11 +1202,9 @@
     .artifact-header-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
     .artifact-header-btn svg { width: 16px; height: 16px; }
 
-    /* Export dropdown */
     .export-dropdown {
       position: absolute;
-      top: 100%;
-      right: 0;
+      top: 100%; right: 0;
       margin-top: 4px;
       background: var(--bg-primary);
       border: 1px solid var(--border);
@@ -1037,67 +1217,46 @@
     }
     .export-dropdown.open { display: block; }
     .export-dropdown-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
       padding: 10px 14px;
-      font-size: 13px;
-      color: var(--text-primary);
-      cursor: pointer;
-      border: none;
-      background: none;
-      width: 100%;
-      font-family: inherit;
-      text-align: left;
+      font-size: 13px; color: var(--text-primary);
+      cursor: pointer; border: none; background: none;
+      width: 100%; font-family: inherit; text-align: left;
       transition: background var(--transition);
     }
-    .export-dropdown-item:hover { background: var(--bg-secondary); }
+    .export-dropdown-item:hover { background: var(--bg-page); }
     .export-dropdown-item svg { width: 14px; height: 14px; color: var(--text-secondary); }
 
-    /* Artifact items tabs row */
     .artifact-items-tabs {
-      display: flex;
-      gap: 4px;
+      display: flex; gap: 4px;
       overflow-x: auto;
       padding: 0 16px 10px;
     }
     .artifact-items-tabs::-webkit-scrollbar { display: none; }
     .artifact-item-tab {
       padding: 5px 12px;
-      border-radius: 6px;
-      border: none;
+      border-radius: 6px; border: none;
       background: transparent;
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 500;
+      font-family: inherit; font-size: 12px; font-weight: 500;
       color: var(--text-secondary);
-      cursor: pointer;
-      white-space: nowrap;
+      cursor: pointer; white-space: nowrap;
       transition: all var(--transition);
     }
-    .artifact-item-tab:hover { background: var(--bg-secondary); }
+    .artifact-item-tab:hover { background: var(--bg-page); }
     .artifact-item-tab.active {
       background: var(--gptw-red-bg);
       color: var(--gptw-red);
       font-weight: 600;
     }
-
-    /* Artifact content area */
     .artifact-body {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
+      flex: 1; position: relative; overflow: hidden;
     }
     .artifact-iframe-container {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      inset: 0;
+      width: 100%; height: 100%;
+      position: absolute; inset: 0;
     }
     .artifact-iframe-container iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
+      width: 100%; height: 100%; border: none;
     }
 
     /* Presentation nav */
@@ -1109,19 +1268,15 @@
       justify-content: center;
       gap: 16px;
       flex-shrink: 0;
-      background: var(--bg-primary);
     }
     .presentation-nav.visible { display: flex; }
     .pres-nav-btn {
-      width: 36px;
-      height: 36px;
+      width: 36px; height: 36px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--bg-primary);
+      background: #fff;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--text-secondary);
       transition: all var(--transition);
     }
@@ -1129,145 +1284,146 @@
     .pres-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
     .pres-nav-btn svg { width: 16px; height: 16px; }
     .pres-nav-counter {
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 13px; font-weight: 600;
       color: var(--text-secondary);
-      min-width: 60px;
-      text-align: center;
+      min-width: 60px; text-align: center;
     }
 
     /* ================================================================
-       WORKSPACE VIEW
+       VIEW: MY REPORTS
        ================================================================ */
-    .workspace-view {
-      display: none;
-      position: absolute;
-      inset: 0;
-      overflow-y: auto;
-      padding: 20px;
-      background: var(--bg-secondary);
-    }
-    .workspace-view.active { display: block; }
-    .workspace-header {
+    .myreports-view { overflow-y: auto; background: var(--bg-page); }
+    .myreports-header {
+      padding: 40px 40px 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
+      gap: 12px;
     }
-    .workspace-title {
-      font-size: 16px;
+    .myreports-title {
+      font-size: 24px;
       font-weight: 700;
       color: var(--text-primary);
     }
-    .workspace-export-btn {
-      padding: 8px 16px;
-      background: var(--gptw-red);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
+    .myreports-count {
+      padding: 2px 10px;
+      background: var(--border);
+      border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background var(--transition);
+      color: var(--text-secondary);
     }
-    .workspace-export-btn:hover { background: var(--gptw-red-hover); }
-    .workspace-export-btn svg { width: 14px; height: 14px; }
-    .workspace-grid {
+    .myreports-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 28px 40px 40px;
     }
-    .workspace-card {
-      background: var(--bg-primary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
+    .myreport-card {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
       overflow: hidden;
       cursor: pointer;
-      transition: all var(--transition);
+      transition: box-shadow var(--transition), transform var(--transition);
+      position: relative;
     }
-    .workspace-card:hover {
-      border-color: var(--gptw-red-light);
-      box-shadow: var(--shadow-md);
+    .myreport-card:hover {
+      box-shadow: var(--shadow-card-hover);
       transform: translateY(-2px);
     }
-    .workspace-card-preview {
+    .myreport-card-preview {
       height: 160px;
       overflow: hidden;
       background: #fff;
       position: relative;
     }
-    .workspace-card-preview iframe {
-      width: 200%;
-      height: 200%;
+    .myreport-card-preview iframe {
+      width: 200%; height: 200%;
       border: none;
       transform: scale(0.5);
       transform-origin: top left;
       pointer-events: none;
     }
-    .workspace-card-info {
-      padding: 12px 16px;
+    .myreport-card-info {
+      padding: 16px;
       border-top: 1px solid var(--border-light);
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
-    .workspace-card-icon {
-      width: 28px;
-      height: 28px;
-      background: var(--gptw-red-bg);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      color: var(--gptw-red);
-    }
-    .workspace-card-icon svg { width: 14px; height: 14px; }
-    .workspace-card-title {
-      font-size: 13px;
+    .myreport-card-title {
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
+      margin-bottom: 6px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .workspace-empty {
-      text-align: center;
-      padding: 60px 20px;
+    .myreport-card-bottom {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .myreport-type-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .myreport-type-badge.dashboard { background: #eff6ff; color: #3b82f6; }
+    .myreport-type-badge.presentation { background: #faf5ff; color: #a855f7; }
+    .myreport-card-time {
+      font-size: 11px;
       color: var(--text-muted);
     }
-    .workspace-empty svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
-    .workspace-empty p { font-size: 14px; }
+    .myreport-delete-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 28px; height: 28px;
+      background: rgba(0,0,0,0.6);
+      border: none; border-radius: 6px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      opacity: 0;
+      transition: opacity var(--transition);
+      z-index: 2;
+    }
+    .myreport-card:hover .myreport-delete-btn { opacity: 1; }
+    .myreport-delete-btn:hover { background: var(--gptw-red); }
+    .myreport-delete-btn svg { width: 14px; height: 14px; }
+
+    .myreports-empty {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+    }
+    .myreports-empty-icon {
+      width: 56px; height: 56px;
+      background: var(--bg-tertiary);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      color: var(--text-muted);
+    }
+    .myreports-empty-icon svg { width: 28px; height: 28px; }
+    .myreports-empty p { font-size: 15px; line-height: 1.6; }
 
     /* ================================================================
        QUOTA MODAL
        ================================================================ */
     .modal-overlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       z-index: 10000;
-      opacity: 0;
-      visibility: hidden;
+      opacity: 0; visibility: hidden;
       transition: all 0.3s ease;
     }
-    .modal-overlay.visible {
-      opacity: 1;
-      visibility: visible;
-    }
+    .modal-overlay.visible { opacity: 1; visibility: visible; }
     .modal-box {
       background: #fff;
       border-radius: var(--radius-lg);
       padding: 36px;
-      max-width: 400px;
-      width: 90%;
+      max-width: 400px; width: 90%;
       text-align: center;
       box-shadow: var(--shadow-xl);
       transform: scale(0.95);
@@ -1275,86 +1431,294 @@
     }
     .modal-overlay.visible .modal-box { transform: scale(1); }
     .modal-icon {
-      width: 56px;
-      height: 56px;
+      width: 56px; height: 56px;
       background: var(--gptw-red-bg);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       margin: 0 auto 16px;
-      font-size: 24px;
     }
-    .modal-box h3 {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    .modal-box p {
-      font-size: 14px;
-      color: var(--text-secondary);
-      margin-bottom: 24px;
-      line-height: 1.6;
-    }
+    .modal-icon svg { width: 28px; height: 28px; color: var(--gptw-red); }
+    .modal-box h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .modal-box p { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6; }
     .modal-btn {
       padding: 10px 28px;
-      background: var(--gptw-red);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 600;
+      background: var(--gptw-red); color: #fff;
+      border: none; border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 14px; font-weight: 600;
       cursor: pointer;
       transition: background var(--transition);
     }
     .modal-btn:hover { background: var(--gptw-red-hover); }
 
     /* ================================================================
-       MOBILE SIDEBAR OVERLAY
+       BOTTOM NAV (mobile)
        ================================================================ */
-    .sidebar-overlay {
+    .bottom-nav {
+      display: none;
       position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      z-index: 900;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s ease;
+      bottom: 0; left: 0; right: 0;
+      height: 56px;
+      background: #fff;
+      border-top: 1px solid var(--border);
+      z-index: 200;
+      justify-content: space-around;
+      align-items: center;
     }
-    .sidebar-overlay.visible { opacity: 1; visibility: visible; }
+    .bottom-nav-btn {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2px;
+      background: none; border: none;
+      cursor: pointer; color: var(--text-muted);
+      font-size: 10px; font-weight: 600;
+      padding: 4px 16px;
+      transition: color var(--transition);
+    }
+    .bottom-nav-btn.active { color: var(--gptw-red); }
+    .bottom-nav-btn svg { width: 22px; height: 22px; }
 
     /* ================================================================
        RESPONSIVE
        ================================================================ */
+    @media (max-width: 1024px) {
+      .home-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); padding: 20px 24px 24px; }
+      .home-header { padding: 28px 24px 0; }
+      .myreports-header { padding: 28px 24px 0; }
+      .myreports-grid { padding: 20px 24px 24px; }
+    }
     @media (max-width: 768px) {
-      .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        z-index: 1000;
-        transform: translateX(-100%);
-      }
-      .sidebar.mobile-open { transform: translateX(0); }
-      .topbar-menu-btn { display: flex; }
+      .sidebar { display: none; }
+      .bottom-nav { display: flex; }
+      .main { padding-bottom: 56px; }
+      .home-grid { grid-template-columns: 1fr; padding: 16px; }
+      .home-header { padding: 20px 16px 0; }
+      .home-greeting { font-size: 22px; }
+      .myreports-header { padding: 20px 16px 0; }
+      .myreports-grid { grid-template-columns: 1fr; padding: 16px; }
       .suggestions { grid-template-columns: 1fr; }
+      .message-inner { padding: 10px 16px; }
+      .status-timeline-inner { padding-left: 56px; }
+      .input-area { padding: 12px 16px 16px; }
       .artifact-panel.open {
-        position: fixed;
-        inset: 0;
+        position: fixed; inset: 0;
         width: 100% !important;
         z-index: 800;
         border-left: none;
       }
-      .message-inner { padding: 10px 16px; }
-      .status-timeline-inner { padding-left: 56px; }
-      .input-area { padding: 12px 16px 16px; }
-      .workspace-grid { grid-template-columns: 1fr; }
+      .floating-chat-panel {
+        right: 12px; left: 12px; bottom: 72px;
+        width: auto;
+      }
+      .floating-chat-btn { bottom: 72px; right: 16px; }
+      .report-header { padding: 0 12px; }
     }
-    @media (max-width: 480px) {
-      .welcome h2 { font-size: 22px; }
-      .welcome p { font-size: 14px; }
+
+    /* ================================================================
+       FEATURE 1: CSV Export Button
+       ================================================================ */
+    /* Uses same .report-action-btn style already defined */
+
+    /* ================================================================
+       FEATURE 2: Favorites / Pin
+       ================================================================ */
+    .home-card-fav-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.85);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity var(--transition), background var(--transition), transform var(--transition);
     }
+    .home-card:hover .home-card-fav-btn { opacity: 1; }
+    .home-card-fav-btn.is-fav { opacity: 1; }
+    .home-card-fav-btn:hover { background: rgba(255,255,255,1); transform: scale(1.12); }
+    .home-card-fav-btn svg { width: 16px; height: 16px; }
+    .home-card-fav-btn .fav-star-outline { color: #9ca3af; }
+    .home-card-fav-btn.is-fav .fav-star-outline { display: none; }
+    .home-card-fav-btn .fav-star-filled { display: none; color: #f59e0b; }
+    .home-card-fav-btn.is-fav .fav-star-filled { display: block; }
+    .home-card.is-favorite { border-color: rgba(245,158,11,0.35); }
+
+    .myreport-fav-btn {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.6);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity var(--transition), background var(--transition);
+    }
+    .myreport-card:hover .myreport-fav-btn { opacity: 1; }
+    .myreport-fav-btn.is-fav { opacity: 1; background: rgba(245,158,11,0.9); }
+    .myreport-fav-btn:hover { background: rgba(245,158,11,0.8); }
+    .myreport-fav-btn svg { width: 14px; height: 14px; color: #fff; }
+    .myreport-card.is-favorite { border: 1.5px solid rgba(245,158,11,0.35); }
+
+    /* ================================================================
+       FEATURE 3: Query History Panel
+       ================================================================ */
+    .history-toggle-btn {
+      width: 38px;
+      height: 38px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: all var(--transition);
+      flex-shrink: 0;
+      margin: 2px;
+    }
+    .history-toggle-btn:hover { background: var(--bg-page); color: var(--text-secondary); }
+    .history-toggle-btn svg { width: 18px; height: 18px; }
+
+    .history-panel {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      width: 100%;
+      max-height: 0;
+      overflow: hidden;
+      background: #fff;
+      border-radius: 12px 12px 0 0;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      z-index: 50;
+      transition: max-height 0.25s ease, opacity 0.2s ease;
+      opacity: 0;
+    }
+    .history-panel.open {
+      max-height: 300px;
+      opacity: 1;
+      overflow-y: auto;
+    }
+    .history-panel::-webkit-scrollbar { width: 4px; }
+    .history-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .history-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-light);
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+    }
+    .history-panel-header span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .history-clear-btn {
+      font-size: 11px;
+      color: var(--gptw-red);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+    }
+    .history-clear-btn:hover { text-decoration: underline; }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background var(--transition);
+      border-bottom: 1px solid var(--border-light);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { background: #f7f8fa; }
+    .history-item-text {
+      flex: 1;
+      font-size: 13px;
+      color: #374151;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-item-play {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      border-radius: 4px;
+      transition: all var(--transition);
+    }
+    .history-item-play:hover { color: var(--gptw-red); background: var(--gptw-red-bg); }
+    .history-item-play svg { width: 14px; height: 14px; }
+    .history-empty {
+      padding: 20px 14px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ================================================================
+       FEATURE 4: Drill-down Chips
+       ================================================================ */
+    .report-drilldown {
+      display: flex;
+      gap: 8px;
+      padding: 10px 24px;
+      overflow-x: auto;
+      background: #f7f8fa;
+      border-bottom: 1px solid #e5e7eb;
+      flex-shrink: 0;
+    }
+    .report-drilldown::-webkit-scrollbar { display: none; }
+    .report-drilldown:empty { display: none; }
+    .drilldown-chip {
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: inherit;
+      transition: all var(--transition);
+      flex-shrink: 0;
+    }
+    .drilldown-chip:hover {
+      border-color: #FF1628;
+      color: #FF1628;
+      background: #fff1f2;
+    }
+    .drilldown-chip svg { width: 12px; height: 12px; }
 
     /* Utility */
     .hidden { display: none !important; }
@@ -1365,7 +1729,9 @@
   <!-- =========== LOGIN =========== -->
   <div class="login-overlay" id="loginOverlay">
     <div class="login-card">
-      <div class="login-logo">GW</div>
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
       <h1>Sales Assistant</h1>
       <p>Inicia sesion para acceder al asistente de ventas de Great Place to Work</p>
       <form id="loginForm">
@@ -1386,188 +1752,279 @@
   <!-- =========== QUOTA MODAL =========== -->
   <div class="modal-overlay" id="quotaModal">
     <div class="modal-box">
-      <div class="modal-icon">&#9888;&#65039;</div>
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <h3>Limite de consultas alcanzado</h3>
       <p>Has utilizado las 25 consultas disponibles en esta sesion. Inicia una nueva conversacion para continuar.</p>
       <button class="modal-btn" onclick="resetChat()">Nueva conversacion</button>
     </div>
   </div>
 
-  <!-- =========== SIDEBAR OVERLAY (MOBILE) =========== -->
-  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
   <!-- =========== MAIN APP =========== -->
   <div class="app" id="app">
 
-    <!-- Sidebar -->
+    <!-- Sidebar (60px icon rail) -->
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-brand">
-          <div class="sidebar-brand-icon">GW</div>
-          <div class="sidebar-brand-text">
-            <strong>GPTW Sales</strong>
-            <span>Assistant v2.0</span>
-          </div>
-        </div>
+      <div class="sidebar-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       </div>
 
-      <button class="sidebar-new-chat" onclick="resetChat()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Nueva conversacion
-      </button>
-
-      <div class="sidebar-section-title">Acciones rapidas</div>
-      <div class="quick-actions">
-        <button class="quick-action" onclick="sendQuickAction('¿Como van las ventas este mes?')">
-          <span class="qa-icon">&#128200;</span> Ventas del mes
+      <div class="sidebar-nav">
+        <button class="sidebar-nav-btn active" id="navHome" onclick="switchView('home')" title="Home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </button>
-        <button class="quick-action" onclick="sendQuickAction('¿Cuantas oportunidades abiertas hay?')">
-          <span class="qa-icon">&#128202;</span> Oportunidades abiertas
+        <button class="sidebar-nav-btn" id="navChat" onclick="switchView('chat')" title="Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
-        <button class="quick-action" onclick="sendQuickAction('¿Quien es el mejor vendedor?')">
-          <span class="qa-icon">&#127942;</span> Top vendedores
+        <button class="sidebar-nav-btn" id="navMyReports" onclick="switchView('myreports')" title="Mis Reportes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="nav-badge hidden" id="myReportsBadge">0</span>
         </button>
-        <button class="quick-action" onclick="sendQuickAction('¿Como esta el pipeline de ventas?')">
-          <span class="qa-icon">&#128640;</span> Pipeline
-        </button>
-        <button class="quick-action" onclick="sendQuickAction('Genera un dashboard completo de ventas')">
-          <span class="qa-icon">&#128203;</span> Dashboard completo
-        </button>
-      </div>
-
-      <div class="sidebar-artifacts-section" id="sidebarArtifactsSection">
-        <div class="sidebar-section-title">Artefactos</div>
-        <div class="sidebar-artifacts" id="sidebarArtifacts"></div>
       </div>
 
       <div class="sidebar-spacer"></div>
 
-      <div class="sidebar-quota">
-        <div class="quota-label">
-          <span>Consultas</span>
-          <span id="quotaText">0 / 25</span>
-        </div>
-        <div class="quota-bar">
-          <div class="quota-fill" id="quotaFill" style="width:0%"></div>
+      <div class="sidebar-quota-wrap">
+        <div class="quota-circle" id="quotaCircle" title="Consultas usadas">
+          <svg viewBox="0 0 36 36">
+            <circle class="quota-circle-bg" cx="18" cy="18" r="15" />
+            <circle class="quota-circle-fill" id="quotaCircleFill" cx="18" cy="18" r="15" stroke-dasharray="94.25" stroke-dashoffset="94.25" />
+          </svg>
+          <span class="quota-circle-text" id="quotaCircleText">0</span>
         </div>
       </div>
 
-      <div class="sidebar-user" id="sidebarUser">
-        <div class="user-avatar" id="userAvatar">?</div>
-        <div class="user-info">
-          <div class="user-name" id="userName">Usuario</div>
-          <div class="user-role">Sales Manager</div>
-        </div>
-      </div>
+      <div class="sidebar-avatar" id="sidebarAvatar" title="Usuario">?</div>
     </aside>
 
-    <!-- Main -->
+    <!-- Main content -->
     <div class="main">
-      <div class="topbar">
-        <button class="topbar-menu-btn" onclick="openSidebar()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-        <span class="topbar-title">Sales Assistant</span>
-        <div class="topbar-spacer"></div>
-        <button class="topbar-artifact-toggle" id="artifactToggleBtn" onclick="toggleArtifactPanel()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-          Artefactos <span class="badge" id="artifactBadge">0</span>
-        </button>
-      </div>
 
-      <div class="chat-wrapper">
-        <!-- Chat Area -->
-        <div class="chat-area" id="chatArea">
-          <div class="messages" id="messages">
-            <div class="welcome" id="welcome">
-              <div class="welcome-icon">GW</div>
-              <h2>Hola, bienvenido</h2>
-              <p>Soy tu asistente de ventas de Great Place to Work. Puedo consultar datos de Salesforce, generar reportes y dashboards para ayudarte a tomar mejores decisiones.</p>
-              <div class="suggestions">
-                <button class="suggestion" onclick="sendQuickAction('¿Como van las ventas este mes?')">
-                  <div class="suggestion-title">Ventas del mes</div>
-                  <div class="suggestion-desc">Resumen de oportunidades cerradas este mes</div>
-                </button>
-                <button class="suggestion" onclick="sendQuickAction('¿Cuantas oportunidades abiertas tenemos?')">
-                  <div class="suggestion-title">Pipeline actual</div>
-                  <div class="suggestion-desc">Oportunidades abiertas y su estado</div>
-                </button>
-                <button class="suggestion" onclick="sendQuickAction('¿Quien es el mejor vendedor este trimestre?')">
-                  <div class="suggestion-title">Top vendedores</div>
-                  <div class="suggestion-desc">Ranking de vendedores por rendimiento</div>
-                </button>
-                <button class="suggestion" onclick="sendQuickAction('Genera un dashboard completo de ventas con graficas')">
-                  <div class="suggestion-title">Dashboard completo</div>
-                  <div class="suggestion-desc">Visualizacion completa con KPIs y graficas</div>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="input-area">
-            <div class="input-container">
-              <div class="input-row">
-                <textarea id="chatInput" rows="1" placeholder="Pregunta sobre ventas, pipeline, oportunidades..." disabled></textarea>
-                <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                </button>
-                <button class="cancel-btn hidden" id="cancelBtn" onclick="cancelRequest()">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                </button>
-              </div>
-            </div>
-            <div class="input-footer">
-              <span>GPTW Sales Assistant puede cometer errores. Verifica datos importantes.</span>
-            </div>
+      <!-- ====== VIEW: HOME ====== -->
+      <div class="view home-view active" id="viewHome">
+        <div class="home-header">
+          <div class="home-greeting" id="homeGreeting">Buenos dias</div>
+          <div class="home-subtitle">
+            <span>Tus dashboards actualizados</span>
+            <span class="home-date" id="homeDate"></span>
           </div>
         </div>
+        <div class="home-grid" id="homeGrid">
+          <div class="home-loading">
+            <div class="spinner"></div>
+            Cargando reportes...
+          </div>
+        </div>
+      </div>
 
-        <!-- Artifact Panel -->
-        <div class="artifact-panel" id="artifactPanel" tabindex="-1">
-          <div class="artifact-panel-header">
-            <div class="artifact-panel-header-top">
-              <div class="artifact-view-tabs">
-                <button class="artifact-view-tab active" data-view="single" onclick="switchArtifactView('single')">Vista</button>
-                <button class="artifact-view-tab" data-view="workspace" onclick="switchArtifactView('workspace')">Workspace</button>
-              </div>
-              <div class="artifact-header-spacer"></div>
-              <div class="artifact-header-btn" id="exportBtn" onclick="toggleExportDropdown(event)" style="position:relative">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <div class="export-dropdown" id="exportDropdown">
-                  <button class="export-dropdown-item" onclick="exportArtifactPNG(event)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    Exportar como PNG
+      <!-- ====== VIEW: REPORT (fullscreen) ====== -->
+      <div class="view report-view" id="viewReport">
+        <div class="report-header">
+          <button class="report-back-btn" onclick="goBack()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Volver
+          </button>
+          <span class="report-title" id="reportTitle">Reporte</span>
+          <button class="report-action-btn" onclick="exportCurrentReportPNG()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            PNG
+          </button>
+          <button class="report-action-btn" onclick="exportCurrentReportPrint()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir
+          </button>
+          <button class="report-action-btn" onclick="exportCurrentReportCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            CSV
+          </button>
+        </div>
+        <div class="report-drilldown" id="reportDrilldown"></div>
+        <div class="report-iframe-wrap" id="reportIframeWrap">
+          <!-- iframe rendered here -->
+        </div>
+      </div>
+
+      <!-- Floating chat button (only in report view) -->
+      <button class="floating-chat-btn hidden-fc" id="floatingChatBtn" onclick="toggleFloatingChat()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+
+      <!-- Floating chat panel -->
+      <div class="floating-chat-panel" id="floatingChatPanel">
+        <div class="fc-header">
+          <div class="fc-header-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="fc-header-text">Preguntar sobre este reporte</div>
+          <button class="fc-close-btn" onclick="toggleFloatingChat()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="fc-messages" id="floatingMessages"></div>
+        <div class="fc-input-wrap">
+          <textarea class="fc-input" id="floatingInput" rows="1" placeholder="Escribe tu pregunta..."></textarea>
+          <button class="fc-send-btn" id="floatingSendBtn" onclick="sendFloatingMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ====== VIEW: CHAT ====== -->
+      <div class="view chat-view" id="viewChat">
+        <div class="chat-topbar">
+          <button class="chat-topbar-menu" id="mobileMenuBtn" onclick="openMobileNav()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <span class="chat-topbar-title">Sales Assistant</span>
+          <div class="chat-topbar-spacer"></div>
+          <button class="chat-topbar-badge" id="chatArtifactToggle" onclick="toggleArtifactPanel()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+            Artefactos <span class="badge-count" id="artifactBadge">0</span>
+          </button>
+          <button class="chat-newchat-btn" onclick="resetChat()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo
+          </button>
+        </div>
+
+        <div class="chat-body">
+          <div class="chat-area" id="chatArea">
+            <div class="messages" id="messages">
+              <div class="welcome" id="welcome">
+                <div class="welcome-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <h2>Hola, bienvenido</h2>
+                <p>Soy tu asistente de ventas de Great Place to Work. Puedo consultar datos de Salesforce, generar reportes y dashboards para ayudarte a tomar mejores decisiones.</p>
+                <div class="suggestions">
+                  <button class="suggestion" onclick="sendQuickAction('¿Como van las ventas este mes?')">
+                    <div class="suggestion-title">Ventas del mes</div>
+                    <div class="suggestion-desc">Resumen de oportunidades cerradas este mes</div>
                   </button>
-                  <button class="export-dropdown-item" onclick="exportArtifactPrint(event)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Imprimir / PDF
+                  <button class="suggestion" onclick="sendQuickAction('¿Cuantas oportunidades abiertas tenemos?')">
+                    <div class="suggestion-title">Pipeline actual</div>
+                    <div class="suggestion-desc">Oportunidades abiertas y su estado</div>
+                  </button>
+                  <button class="suggestion" onclick="sendQuickAction('¿Quien es el mejor vendedor este trimestre?')">
+                    <div class="suggestion-title">Top vendedores</div>
+                    <div class="suggestion-desc">Ranking de vendedores por rendimiento</div>
+                  </button>
+                  <button class="suggestion" onclick="sendQuickAction('Genera un dashboard completo de ventas con graficas')">
+                    <div class="suggestion-title">Dashboard completo</div>
+                    <div class="suggestion-desc">Visualizacion completa con KPIs y graficas</div>
                   </button>
                 </div>
               </div>
-              <button class="artifact-header-btn" onclick="closeArtifactPanel()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+
+            <div class="input-area">
+              <div style="position:relative">
+                <div class="history-panel" id="historyPanel">
+                  <div class="history-panel-header">
+                    <span>Historial de consultas</span>
+                    <button class="history-clear-btn" onclick="clearQueryHistory()">Limpiar</button>
+                  </div>
+                  <div id="historyItems"></div>
+                </div>
+                <div class="input-container">
+                  <div class="input-row">
+                    <button class="history-toggle-btn" id="historyToggleBtn" onclick="toggleHistoryPanel()" title="Historial">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </button>
+                    <textarea id="chatInput" rows="1" placeholder="Pregunta sobre ventas, pipeline, oportunidades..." disabled></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                    <button class="cancel-btn hidden" id="cancelBtn" onclick="cancelRequest()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="input-footer">
+                <span>GPTW Sales Assistant puede cometer errores. Verifica datos importantes.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Artifact Panel (chat view side panel) -->
+          <div class="artifact-panel" id="artifactPanel" tabindex="-1">
+            <div class="artifact-panel-header">
+              <div class="artifact-panel-header-top">
+                <span class="artifact-header-title" id="artifactHeaderTitle">Artefacto</span>
+                <div class="artifact-header-btn" id="exportBtn" onclick="toggleExportDropdown(event)" style="position:relative">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <div class="export-dropdown" id="exportDropdown">
+                    <button class="export-dropdown-item" onclick="exportArtifactPNG(event)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      Exportar como PNG
+                    </button>
+                    <button class="export-dropdown-item" onclick="exportArtifactPrint(event)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                      Imprimir / PDF
+                    </button>
+                  </div>
+                </div>
+                <button class="artifact-header-btn" onclick="closeArtifactPanel()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div class="artifact-items-tabs" id="artifactItemsTabs"></div>
+            </div>
+
+            <div class="artifact-body">
+              <div class="artifact-iframe-container" id="artifactContent"></div>
+            </div>
+
+            <div class="presentation-nav" id="presentationNav">
+              <button class="pres-nav-btn" id="presNavPrev" onclick="presNavPrev()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span class="pres-nav-counter" id="presNavCounter">1 / 1</span>
+              <button class="pres-nav-btn" id="presNavNext" onclick="presNavNext()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
               </button>
             </div>
-            <div class="artifact-items-tabs" id="artifactItemsTabs"></div>
-          </div>
-
-          <div class="artifact-body">
-            <div class="artifact-iframe-container" id="artifactContent"></div>
-            <div class="workspace-view" id="workspaceView"></div>
-          </div>
-
-          <div class="presentation-nav" id="presentationNav">
-            <button class="pres-nav-btn" id="presNavPrev" onclick="presNavPrev()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span class="pres-nav-counter" id="presNavCounter">1 / 1</span>
-            <button class="pres-nav-btn" id="presNavNext" onclick="presNavNext()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-            </button>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- ====== VIEW: MY REPORTS ====== -->
+      <div class="view myreports-view" id="viewMyReports">
+        <div class="myreports-header">
+          <div class="myreports-title">Mis Reportes</div>
+          <span class="myreports-count" id="myReportsCount">0</span>
+        </div>
+        <div id="myReportsContent">
+          <div class="myreports-empty" id="myReportsEmpty">
+            <div class="myreports-empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <p>Aun no tenes reportes.<br>Pedile uno al chat.</p>
+          </div>
+        </div>
+        <div class="myreports-grid hidden" id="myReportsGrid"></div>
+      </div>
+
+    </div><!-- /main -->
+
+  </div><!-- /app -->
+
+  <!-- =========== BOTTOM NAV (mobile) =========== -->
+  <div class="bottom-nav" id="bottomNav">
+    <button class="bottom-nav-btn active" data-view="home" onclick="switchView('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="bottom-nav-btn" data-view="chat" onclick="switchView('chat')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </button>
+    <button class="bottom-nav-btn" data-view="myreports" onclick="switchView('myreports')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Reportes
+    </button>
   </div>
 
   <script>
@@ -1584,10 +2041,17 @@
       activeArtifact: -1,
       isWaiting: false,
       eventSource: null,
-      currentView: 'single', // 'single' | 'workspace'
+      currentView: 'home',  // 'home' | 'chat' | 'myreports' | 'report'
       feedbacks: {},         // msgId -> 'up'|'down'
       presSlideIndex: 0,
       presTotalSlides: 0,
+      myReports: [],         // { title, html, type, timestamp }
+      activeReportId: null,  // which precached report is open
+      activeReportHtml: '',  // current report HTML for export
+      activeReportTitle: '', // current report title
+      floatingChatOpen: false,
+      previousView: 'home', // for goBack
+      precachedReports: [],  // cached report list from server
     };
 
     let msgIdCounter = 0;
@@ -1621,6 +2085,20 @@
       return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
     }
 
+    function getGreeting() {
+      const h = new Date().getHours();
+      if (h < 12) return 'Buenos dias';
+      if (h < 18) return 'Buenas tardes';
+      return 'Buenas noches';
+    }
+
+    function formatDate() {
+      const d = new Date();
+      const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const days = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+      return days[d.getDay()] + ' ' + d.getDate() + ' de ' + months[d.getMonth()] + ', ' + d.getFullYear();
+    }
+
     /* ================================================================
        LOGIN
        ================================================================ */
@@ -1635,24 +2113,385 @@
       state.chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
       const initials = getInitials(name);
-      $('#userAvatar').textContent = initials;
-      $('#userName').textContent = name;
-      $('.welcome h2').textContent = 'Hola, ' + name.split(' ')[0];
+      $('#sidebarAvatar').textContent = initials;
+      $('#sidebarAvatar').title = name;
+      $('#homeGreeting').textContent = getGreeting() + ', ' + name.split(' ')[0];
+      $('#homeDate').textContent = formatDate();
+      const welcomeH2 = $('#welcome h2');
+      if (welcomeH2) welcomeH2.textContent = 'Hola, ' + name.split(' ')[0];
 
       $('#loginOverlay').classList.add('hidden');
       $('#app').classList.add('visible');
       $('#chatInput').disabled = false;
-      $('#chatInput').focus();
       updateSendBtn();
+
+      switchView('home');
+      loadReports();
     });
 
-    // Enter key submits login
     $('#loginToken').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         $('#loginForm').dispatchEvent(new Event('submit'));
       }
     });
+
+    /* ================================================================
+       VIEW SWITCHING
+       ================================================================ */
+    function switchView(view) {
+      // Close floating chat when leaving report
+      if (state.currentView === 'report' && view !== 'report') {
+        state.floatingChatOpen = false;
+        $('#floatingChatPanel').classList.remove('open');
+        $('#floatingChatBtn').classList.add('hidden-fc');
+      }
+
+      state.previousView = state.currentView;
+      state.currentView = view;
+
+      // Hide all views
+      $$('.view').forEach(v => v.classList.remove('active'));
+
+      // Show target view
+      if (view === 'home') {
+        $('#viewHome').classList.add('active');
+      } else if (view === 'chat') {
+        $('#viewChat').classList.add('active');
+        setTimeout(() => { if ($('#chatInput')) $('#chatInput').focus(); }, 100);
+      } else if (view === 'myreports') {
+        $('#viewMyReports').classList.add('active');
+        renderMyReports();
+      } else if (view === 'report') {
+        $('#viewReport').classList.add('active');
+        $('#floatingChatBtn').classList.remove('hidden-fc');
+      }
+
+      // Update sidebar nav
+      $$('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+      if (view === 'home') $('#navHome').classList.add('active');
+      else if (view === 'chat') $('#navChat').classList.add('active');
+      else if (view === 'myreports') $('#navMyReports').classList.add('active');
+
+      // Update bottom nav
+      $$('.bottom-nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === view);
+      });
+    }
+
+    /* ================================================================
+       HOME VIEW - PRECACHED REPORTS
+       ================================================================ */
+    const reportIconColors = ['red', 'blue', 'green', 'orange', 'purple', 'teal', 'pink'];
+    const reportIcons = [
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+    ];
+
+    async function loadReports() {
+      const grid = $('#homeGrid');
+      try {
+        const headers = {};
+        if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+        const res = await fetch('/reports', { headers });
+        if (!res.ok) {
+          grid.innerHTML = '<div class="home-loading">Sin reportes disponibles</div>';
+          return;
+        }
+        const data = await res.json();
+        if (!data.reports || data.reports.length === 0) {
+          grid.innerHTML = '<div class="home-loading">' +
+            (data.generating ? '<div class="spinner"></div>Generando reportes...' : 'Sin reportes disponibles') +
+            '</div>';
+          if (data.generating) setTimeout(loadReports, 15000);
+          return;
+        }
+        state.precachedReports = data.reports;
+        renderHomeCards(data.reports);
+      } catch (err) {
+        grid.innerHTML = '<div class="home-loading">Error cargando reportes</div>';
+      }
+    }
+
+    function renderHomeCards(reports) {
+      const grid = $('#homeGrid');
+      grid.innerHTML = '';
+      reports.forEach((r, idx) => {
+        const colorClass = reportIconColors[idx % reportIconColors.length];
+        const iconSvg = reportIcons[idx % reportIcons.length];
+        const card = document.createElement('div');
+        card.className = 'home-card';
+        card.onclick = () => openReport(r.id);
+        card.innerHTML = `
+          <div class="home-card-top">
+            <div class="home-card-icon ${colorClass}">${iconSvg}</div>
+            <div class="home-card-meta">
+              <div class="home-card-title">${escapeHtml(r.title)}</div>
+              <div class="home-card-summary">${escapeHtml(r.summary || '')}</div>
+            </div>
+          </div>
+          <div class="home-card-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Auto 4am
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function openReport(reportId) {
+      state.activeReportId = reportId;
+      try {
+        const headers = {};
+        if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+        const res = await fetch('/reports/' + reportId, { headers });
+        if (!res.ok) return;
+        const report = await res.json();
+
+        state.activeReportHtml = report.html;
+        state.activeReportTitle = report.title;
+        $('#reportTitle').textContent = report.title;
+
+        const wrap = $('#reportIframeWrap');
+        wrap.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('sandbox', 'allow-scripts');
+        iframe.srcdoc = report.html;
+        wrap.appendChild(iframe);
+
+        switchView('report');
+      } catch (err) {
+        console.error('Failed to load report:', err);
+      }
+    }
+
+    function goBack() {
+      const prev = state.previousView;
+      if (prev === 'report') {
+        switchView('home');
+      } else {
+        switchView(prev || 'home');
+      }
+    }
+
+    /* ================================================================
+       REPORT VIEW EXPORTS
+       ================================================================ */
+    function exportCurrentReportPNG() {
+      if (!state.activeReportHtml) return;
+      const w = window.open('', '_blank', 'width=1200,height=900');
+      w.document.write(state.activeReportHtml);
+      w.document.close();
+      setTimeout(() => {
+        const script = w.document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.onload = () => {
+          w.html2canvas(w.document.body, { useCORS: true, scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = (state.activeReportTitle || 'reporte') + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            w.close();
+          }).catch(() => { alert('No se pudo exportar como PNG.'); w.close(); });
+        };
+        w.document.head.appendChild(script);
+      }, 2000);
+    }
+
+    function exportCurrentReportPrint() {
+      if (!state.activeReportHtml) return;
+      const w = window.open('', '_blank', 'width=1200,height=900');
+      w.document.write(state.activeReportHtml);
+      w.document.close();
+      setTimeout(() => w.print(), 2000);
+    }
+
+    /* ================================================================
+       FLOATING CHAT
+       ================================================================ */
+    function toggleFloatingChat() {
+      state.floatingChatOpen = !state.floatingChatOpen;
+      const panel = $('#floatingChatPanel');
+      if (state.floatingChatOpen) {
+        panel.classList.add('open');
+        setTimeout(() => { $('#floatingInput').focus(); }, 200);
+      } else {
+        panel.classList.remove('open');
+      }
+    }
+
+    function sendFloatingMessage() {
+      const input = $('#floatingInput');
+      const text = input.value.trim();
+      if (!text || state.isWaiting) return;
+
+      if (state.questionCount >= MAX_QUESTIONS) {
+        showQuotaModal();
+        return;
+      }
+
+      // Show user message in floating chat
+      addFloatingMsg('user', text);
+
+      // Prefix with context for the backend
+      const contextText = 'Contexto: estoy viendo el reporte "' + state.activeReportTitle + '". Pregunta: ' + text;
+
+      // Also add to main chat
+      const welcome = $('#welcome');
+      if (welcome) welcome.remove();
+      addMessage('user', text);
+
+      state.questionCount++;
+      updateQuota();
+
+      input.value = '';
+
+      state.isWaiting = true;
+      updateSendBtn();
+
+      showTypingIndicator();
+      showFloatingTyping();
+
+      sendToBackend(contextText);
+    }
+
+    function addFloatingMsg(role, text) {
+      const container = $('#floatingMessages');
+      const div = document.createElement('div');
+      div.className = 'fc-msg ' + role;
+      if (role === 'user') {
+        div.textContent = text;
+      } else {
+        div.innerHTML = renderMarkdown(text);
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function showFloatingTyping() {
+      removeFloatingTyping();
+      const container = $('#floatingMessages');
+      const div = document.createElement('div');
+      div.className = 'fc-typing';
+      div.id = 'fcTyping';
+      div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function removeFloatingTyping() {
+      const el = document.getElementById('fcTyping');
+      if (el) el.remove();
+    }
+
+    $('#floatingInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendFloatingMessage();
+      }
+    });
+
+    /* ================================================================
+       MY REPORTS
+       ================================================================ */
+    function addToMyReports(title, html, type) {
+      state.myReports.push({
+        title: title,
+        html: html,
+        type: type || 'dashboard',
+        timestamp: new Date().toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }),
+      });
+      updateMyReportsBadge();
+    }
+
+    function deleteMyReport(index) {
+      event.stopPropagation();
+      state.myReports.splice(index, 1);
+      updateMyReportsBadge();
+      renderMyReports();
+    }
+
+    function openMyReport(index) {
+      const report = state.myReports[index];
+      if (!report) return;
+
+      state.activeReportHtml = report.html;
+      state.activeReportTitle = report.title;
+      $('#reportTitle').textContent = report.title;
+
+      const wrap = $('#reportIframeWrap');
+      wrap.innerHTML = '';
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.srcdoc = report.html;
+      wrap.appendChild(iframe);
+
+      switchView('report');
+    }
+
+    function renderMyReports() {
+      const emptyEl = $('#myReportsEmpty');
+      const gridEl = $('#myReportsGrid');
+      const countEl = $('#myReportsCount');
+      countEl.textContent = state.myReports.length;
+
+      if (state.myReports.length === 0) {
+        emptyEl.classList.remove('hidden');
+        gridEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      gridEl.classList.remove('hidden');
+      gridEl.innerHTML = '';
+
+      state.myReports.forEach((r, idx) => {
+        const card = document.createElement('div');
+        card.className = 'myreport-card';
+        card.onclick = () => openMyReport(idx);
+
+        const typeBadgeClass = r.type === 'presentation' ? 'presentation' : 'dashboard';
+        const typeLabel = r.type === 'presentation' ? 'Presentacion' : 'Dashboard';
+
+        card.innerHTML = `
+          <button class="myreport-delete-btn" onclick="deleteMyReport(${idx})" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <div class="myreport-card-preview">
+            <iframe sandbox="allow-scripts" loading="lazy"></iframe>
+          </div>
+          <div class="myreport-card-info">
+            <div class="myreport-card-title">${escapeHtml(r.title)}</div>
+            <div class="myreport-card-bottom">
+              <span class="myreport-type-badge ${typeBadgeClass}">${typeLabel}</span>
+              <span class="myreport-card-time">${r.timestamp}</span>
+            </div>
+          </div>
+        `;
+        // Set srcdoc via JS to avoid escapeHtml breaking the HTML
+        const previewIframe = card.querySelector('iframe');
+        if (previewIframe && r.html) {
+          previewIframe.srcdoc = r.html;
+        }
+        gridEl.appendChild(card);
+      });
+    }
+
+    function updateMyReportsBadge() {
+      const badge = $('#myReportsBadge');
+      const count = state.myReports.length;
+      badge.textContent = count;
+      if (count > 0) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
 
     /* ================================================================
        CHAT INPUT
@@ -1701,6 +2540,11 @@
         return;
       }
 
+      // Switch to chat view if not already
+      if (state.currentView !== 'chat') {
+        switchView('chat');
+      }
+
       // Hide welcome
       const welcome = $('#welcome');
       if (welcome) welcome.remove();
@@ -1716,7 +2560,6 @@
       state.isWaiting = true;
       updateSendBtn();
 
-      // Show typing indicator immediately
       showTypingIndicator();
 
       sendToBackend(text);
@@ -1725,7 +2568,6 @@
     function sendQuickAction(text) {
       chatInput.value = text;
       sendMessage();
-      closeSidebar();
     }
 
     /* ================================================================
@@ -1737,32 +2579,29 @@
       try {
         const headers = { 'Content-Type': 'application/json' };
         if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
-
         fetch('/cancel', {
           method: 'POST',
           headers,
           body: JSON.stringify({ chat_id: state.chatId }),
         });
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
 
-      // Close SSE
       if (state.eventSource) {
         state.eventSource.close();
         state.eventSource = null;
       }
 
-      // Finish statuses and remove active timeline
       finishStatuses();
+      removeFloatingTyping();
 
-      // Add cancelled message
       const container = $('#messages');
       const row = document.createElement('div');
       row.className = 'message-row assistant';
       row.innerHTML = `
         <div class="message-inner">
-          <div class="message-avatar">GW</div>
+          <div class="message-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
           <div class="message-content">
             <div class="cancelled-msg">Consulta cancelada</div>
           </div>
@@ -1799,6 +2638,7 @@
         if (!res.ok) {
           state.isWaiting = false;
           updateSendBtn();
+          removeFloatingTyping();
           addMessage('assistant', 'Error: No se pudo enviar el mensaje. (' + res.status + ')');
           return;
         }
@@ -1807,6 +2647,7 @@
       } catch (err) {
         state.isWaiting = false;
         updateSendBtn();
+        removeFloatingTyping();
         addMessage('assistant', 'Error de conexion: ' + err.message);
       }
     }
@@ -1826,11 +2667,20 @@
 
       es.addEventListener('status', (e) => {
         removeTypingIndicator();
+        removeFloatingTyping();
         try {
           const data = JSON.parse(e.data);
-          addStatus(data.text || data.message || e.data);
+          // Only show if we have meaningful text; skip empty status updates
+          const statusText = (data.text && data.text.trim()) || (data.message && data.message.trim()) || '';
+          if (!statusText) return;
+          addStatus(statusText);
+          if (state.floatingChatOpen) {
+            showFloatingStatus(statusText);
+          }
         } catch {
-          addStatus(e.data);
+          if (e.data && e.data.trim() && e.data.trim() !== '{}') {
+            addStatus(e.data);
+          }
         }
       });
 
@@ -1838,7 +2688,12 @@
         try {
           const data = JSON.parse(e.data);
           finishStatuses();
-          addArtifact(data.title || 'Dashboard generado', data.html || '', data.type || 'dashboard');
+          const title = data.title || 'Dashboard generado';
+          const html = data.html || '';
+          const type = data.type || 'dashboard';
+          addArtifact(title, html, type);
+          // Also add to My Reports
+          addToMyReports(title, html, type);
         } catch {
           console.error('Failed to parse artifact event');
         }
@@ -1849,16 +2704,26 @@
           const data = JSON.parse(e.data);
           if (data.role === 'assistant' || !data.role) {
             removeTypingIndicator();
+            removeFloatingTyping();
             finishStatuses();
-            addMessage('assistant', data.text || data.content || e.data);
+            const msgText = data.text || data.content || e.data;
+            addMessage('assistant', msgText);
+            // Mirror in floating chat if open
+            if (state.floatingChatOpen) {
+              addFloatingMsg('assistant', msgText);
+            }
             state.isWaiting = false;
             updateSendBtn();
             chatInput.focus();
           }
         } catch {
           removeTypingIndicator();
+          removeFloatingTyping();
           finishStatuses();
           addMessage('assistant', e.data);
+          if (state.floatingChatOpen) {
+            addFloatingMsg('assistant', e.data);
+          }
           state.isWaiting = false;
           updateSendBtn();
         }
@@ -1866,6 +2731,7 @@
 
       es.addEventListener('done', () => {
         finishStatuses();
+        removeFloatingTyping();
         state.isWaiting = false;
         updateSendBtn();
         es.close();
@@ -1874,6 +2740,7 @@
 
       es.addEventListener('error_event', (e) => {
         finishStatuses();
+        removeFloatingTyping();
         state.isWaiting = false;
         updateSendBtn();
         try {
@@ -1888,6 +2755,7 @@
 
       es.onerror = () => {
         finishStatuses();
+        removeFloatingTyping();
         state.isWaiting = false;
         updateSendBtn();
         es.close();
@@ -1906,7 +2774,9 @@
       row.id = 'typing-indicator';
       row.innerHTML = `
         <div class="message-inner">
-          <div class="message-avatar">GW</div>
+          <div class="message-avatar" style="background:var(--gptw-red);color:#fff">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
           <div class="message-content">
             <div class="message-header">
               <div class="message-sender">GPTW Assistant</div>
@@ -1939,7 +2809,7 @@
       row.dataset.msgId = msgId;
 
       const isUser = role === 'user';
-      const initials = isUser ? getInitials(state.userName) : 'GW';
+      const initials = isUser ? getInitials(state.userName) : '';
       const senderName = isUser ? state.userName : 'GPTW Assistant';
       const timestamp = getTimestamp();
 
@@ -1949,6 +2819,10 @@
       } else {
         bodyHtml = renderMarkdown(text);
       }
+
+      const avatarContent = isUser
+        ? initials
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
 
       const actionsHtml = isUser ? '' : `
         <div class="message-actions">
@@ -1966,7 +2840,7 @@
 
       row.innerHTML = `
         <div class="message-inner">
-          <div class="message-avatar">${initials}</div>
+          <div class="message-avatar">${avatarContent}</div>
           <div class="message-content">
             <div class="message-header">
               <div class="message-sender">${senderName}</div>
@@ -1996,8 +2870,6 @@
       const row = document.querySelector(`[data-msg-id="${msgId}"]`);
       if (!row) return;
       const actions = row.querySelectorAll('.msg-action-btn');
-
-      // Remove previous feedback classes
       actions.forEach(a => a.classList.remove('active-up', 'active-down'));
 
       if (state.feedbacks[msgId] === direction) {
@@ -2027,8 +2899,6 @@
       }
 
       const timeline = timelineContainer.querySelector('.status-timeline');
-
-      // Mark previous steps as done
       timeline.querySelectorAll('.status-step:not(.done)').forEach(s => s.classList.add('done'));
 
       const step = document.createElement('div');
@@ -2061,7 +2931,7 @@
     }
 
     /* ================================================================
-       ARTIFACTS
+       ARTIFACTS (chat view side panel)
        ================================================================ */
     function detectArtifactType(title, html) {
       const lowerTitle = (title || '').toLowerCase();
@@ -2080,9 +2950,12 @@
       state.artifacts.push({ id, title, html, type: detectedType });
 
       addArtifactCard(title, id, detectedType);
-      updateArtifactsSidebar();
       updateArtifactToggle();
-      showArtifact(id);
+
+      // Auto-open in chat view side panel
+      if (state.currentView === 'chat') {
+        showArtifact(id);
+      }
     }
 
     function addArtifactCard(title, artifactId, type) {
@@ -2100,7 +2973,9 @@
 
       row.innerHTML = `
         <div class="message-inner">
-          <div class="message-avatar">GW</div>
+          <div class="message-avatar" style="background:var(--gptw-red);color:#fff">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
           <div class="message-content">
             <div class="artifact-card" onclick="showArtifact(${artifactId})">
               <div class="artifact-card-icon">${iconSvg}</div>
@@ -2108,7 +2983,9 @@
                 <div class="artifact-card-title">${escapeHtml(title)}</div>
                 <div class="artifact-card-subtitle">${subtitle}</div>
               </div>
-              <div class="artifact-card-arrow">&#8250;</div>
+              <div class="artifact-card-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+              </div>
             </div>
           </div>
         </div>
@@ -2122,15 +2999,17 @@
       const artifact = state.artifacts[id];
       if (!artifact) return;
 
-      // Switch to single view
-      switchArtifactView('single');
+      // Make sure we're in chat view
+      if (state.currentView !== 'chat') {
+        switchView('chat');
+      }
 
       // Open panel
       $('#artifactPanel').classList.add('open');
+      $('#artifactHeaderTitle').textContent = artifact.title;
 
       // Update tabs
       updateArtifactItemsTabs();
-      updateArtifactsSidebar();
 
       // Render iframe
       renderArtifactIframe(artifact.html);
@@ -2152,7 +3031,6 @@
       const nav = $('#presentationNav');
       if (artifact.type === 'presentation' || (artifact.html && artifact.html.includes('class="slide"'))) {
         state.presSlideIndex = 0;
-        // Wait for iframe to load to count slides
         const iframe = $('#artifactContent iframe');
         if (iframe) {
           iframe.addEventListener('load', () => {
@@ -2203,7 +3081,6 @@
       if (state.presSlideIndex < state.presTotalSlides - 1) showSlide(state.presSlideIndex + 1);
     }
 
-    // Keyboard nav for presentations
     $('#artifactPanel').addEventListener('keydown', (e) => {
       if ($('#presentationNav').classList.contains('visible')) {
         if (e.key === 'ArrowLeft') presNavPrev();
@@ -2223,32 +3100,8 @@
       });
     }
 
-    function updateArtifactsSidebar() {
-      const container = $('#sidebarArtifacts');
-      const section = $('#sidebarArtifactsSection');
-      if (state.artifacts.length === 0) {
-        section.classList.remove('has-items');
-        container.innerHTML = '';
-        return;
-      }
-      section.classList.add('has-items');
-      container.innerHTML = '';
-      state.artifacts.forEach((art, idx) => {
-        const item = document.createElement('button');
-        item.className = 'sidebar-artifact-item' + (idx === state.activeArtifact ? ' active' : '');
-
-        const iconSvg = art.type === 'presentation'
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
-
-        item.innerHTML = '<span class="art-icon">' + iconSvg + '</span><span class="art-title">' + escapeHtml(art.title) + '</span>';
-        item.onclick = () => { showArtifact(idx); closeSidebar(); };
-        container.appendChild(item);
-      });
-    }
-
     function updateArtifactToggle() {
-      const btn = $('#artifactToggleBtn');
+      const btn = $('#chatArtifactToggle');
       const badge = $('#artifactBadge');
       const count = state.artifacts.length;
       badge.textContent = count;
@@ -2274,88 +3127,7 @@
     }
 
     /* ================================================================
-       ARTIFACT PANEL VIEWS (Single / Workspace)
-       ================================================================ */
-    function switchArtifactView(view) {
-      state.currentView = view;
-      const singleContainer = $('#artifactContent');
-      const workspaceView = $('#workspaceView');
-      const tabsRow = $('#artifactItemsTabs');
-      const presNav = $('#presentationNav');
-
-      // Update view tabs
-      $$('.artifact-view-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.view === view);
-      });
-
-      if (view === 'workspace') {
-        singleContainer.style.display = 'none';
-        workspaceView.classList.add('active');
-        tabsRow.style.display = 'none';
-        presNav.classList.remove('visible');
-        renderWorkspace();
-      } else {
-        singleContainer.style.display = '';
-        workspaceView.classList.remove('active');
-        tabsRow.style.display = '';
-        // Re-render active artifact
-        if (state.activeArtifact >= 0 && state.artifacts[state.activeArtifact]) {
-          renderArtifactIframe(state.artifacts[state.activeArtifact].html);
-          checkPresentation(state.artifacts[state.activeArtifact]);
-        }
-      }
-    }
-
-    function renderWorkspace() {
-      const ws = $('#workspaceView');
-
-      if (state.artifacts.length === 0) {
-        ws.innerHTML = `
-          <div class="workspace-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-            <p>No hay artefactos generados aun</p>
-          </div>
-        `;
-        return;
-      }
-
-      let cardsHtml = '';
-      state.artifacts.forEach((art, idx) => {
-        const iconSvg = art.type === 'presentation'
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
-
-        cardsHtml += `
-          <div class="workspace-card" onclick="showArtifactFromWorkspace(${idx})">
-            <div class="workspace-card-preview">
-              <iframe srcdoc="${escapeHtml(art.html)}" sandbox="allow-scripts" loading="lazy"></iframe>
-            </div>
-            <div class="workspace-card-info">
-              <div class="workspace-card-icon">${iconSvg}</div>
-              <div class="workspace-card-title">${escapeHtml(art.title)}</div>
-            </div>
-          </div>
-        `;
-      });
-
-      ws.innerHTML = `
-        <div class="workspace-header">
-          <div class="workspace-title">Workspace (${state.artifacts.length})</div>
-          <button class="workspace-export-btn" onclick="exportWorkspace()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Exportar todo
-          </button>
-        </div>
-        <div class="workspace-grid">${cardsHtml}</div>
-      `;
-    }
-
-    function showArtifactFromWorkspace(idx) {
-      showArtifact(idx);
-    }
-
-    /* ================================================================
-       EXPORT FUNCTIONS
+       EXPORT (from chat artifact panel)
        ================================================================ */
     function toggleExportDropdown(e) {
       e.stopPropagation();
@@ -2363,7 +3135,6 @@
       dd.classList.toggle('open');
     }
 
-    // Close dropdown on outside click
     document.addEventListener('click', () => {
       const dd = $('#exportDropdown');
       if (dd) dd.classList.remove('open');
@@ -2372,96 +3143,36 @@
     function exportArtifactPNG(e) {
       e.stopPropagation();
       $('#exportDropdown').classList.remove('open');
-
-      const iframe = $('#artifactContent iframe');
-      if (!iframe) return;
-
-      try {
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        html2canvas(iframeDoc.body, { useCORS: true, scale: 2 }).then(canvas => {
-          const link = document.createElement('a');
-          link.download = (state.artifacts[state.activeArtifact]?.title || 'artifact') + '.png';
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-        }).catch(err => {
-          console.error('Export failed:', err);
-          alert('No se pudo exportar. Intente con Imprimir/PDF.');
-        });
-      } catch (err) {
-        console.error('Export failed (cross-origin):', err);
-        alert('No se pudo exportar. Intente con Imprimir/PDF.');
-      }
+      const art = state.artifacts[state.activeArtifact];
+      if (!art) return;
+      const w = window.open('', '_blank', 'width=1200,height=900');
+      w.document.write(art.html);
+      w.document.close();
+      setTimeout(() => {
+        const script = w.document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.onload = () => {
+          w.html2canvas(w.document.body, { useCORS: true, scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = (art.title || 'dashboard') + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            w.close();
+          }).catch(() => { alert('No se pudo exportar como PNG. Use Imprimir/PDF.'); w.close(); });
+        };
+        w.document.head.appendChild(script);
+      }, 2000);
     }
 
     function exportArtifactPrint(e) {
       e.stopPropagation();
       $('#exportDropdown').classList.remove('open');
-
-      const iframe = $('#artifactContent iframe');
-      if (!iframe) return;
-
-      try {
-        iframe.contentWindow.print();
-      } catch {
-        // Fallback: open in new window
-        const w = window.open('', '_blank');
-        w.document.write(state.artifacts[state.activeArtifact]?.html || '');
-        w.document.close();
-        w.print();
-      }
-    }
-
-    async function exportWorkspace() {
-      if (state.artifacts.length === 0) return;
-
-      // Create a temporary container for all artifacts
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;padding:40px;';
-      document.body.appendChild(container);
-
-      container.innerHTML = '<h1 style="font-family:Inter,sans-serif;font-size:24px;margin-bottom:24px;color:#11131C;">GPTW Sales - Workspace Export</h1>';
-
-      for (const art of state.artifacts) {
-        const section = document.createElement('div');
-        section.style.cssText = 'margin-bottom:32px;page-break-inside:avoid;';
-        section.innerHTML = `<h2 style="font-family:Inter,sans-serif;font-size:16px;margin-bottom:12px;color:#11131C;">${escapeHtml(art.title)}</h2>`;
-
-        const frame = document.createElement('iframe');
-        frame.srcdoc = art.html;
-        frame.style.cssText = 'width:100%;height:400px;border:1px solid #e5e7eb;border-radius:8px;';
-        section.appendChild(frame);
-        container.appendChild(section);
-      }
-
-      // Wait for iframes to load
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      try {
-        const canvas = await html2canvas(container, { useCORS: true, scale: 1.5 });
-        const link = document.createElement('a');
-        link.download = 'gptw-workspace-export.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-      } catch (err) {
-        console.error('Workspace export failed:', err);
-        // Fallback: open print dialog
-        const w = window.open('', '_blank');
-        w.document.write(`
-          <html><head><title>GPTW Workspace Export</title>
-          <style>body{font-family:Inter,sans-serif;padding:40px}h1{margin-bottom:24px}
-          .art{margin-bottom:32px;page-break-inside:avoid}
-          iframe{width:100%;height:400px;border:1px solid #e5e7eb;border-radius:8px}</style></head><body>
-          <h1>GPTW Sales - Workspace Export</h1>
-        `);
-        state.artifacts.forEach(art => {
-          w.document.write(`<div class="art"><h2>${escapeHtml(art.title)}</h2><iframe srcdoc="${escapeHtml(art.html)}"></iframe></div>`);
-        });
-        w.document.write('</body></html>');
-        w.document.close();
-        setTimeout(() => w.print(), 1000);
-      }
-
-      document.body.removeChild(container);
+      const art = state.artifacts[state.activeArtifact];
+      if (!art) return;
+      const w = window.open('', '_blank', 'width=1200,height=900');
+      w.document.write(art.html);
+      w.document.close();
+      setTimeout(() => w.print(), 2000);
     }
 
     /* ================================================================
@@ -2469,9 +3180,12 @@
        ================================================================ */
     function updateQuota() {
       const pct = (state.questionCount / MAX_QUESTIONS) * 100;
-      $('#quotaText').textContent = state.questionCount + ' / ' + MAX_QUESTIONS;
-      const fill = $('#quotaFill');
-      fill.style.width = pct + '%';
+      const circumference = 2 * Math.PI * 15; // r=15
+      const offset = circumference - (circumference * pct / 100);
+
+      $('#quotaCircleText').textContent = state.questionCount;
+      const fill = $('#quotaCircleFill');
+      fill.style.strokeDashoffset = offset;
       fill.classList.remove('warning', 'danger');
       if (pct >= 80) fill.classList.add('danger');
       else if (pct >= 60) fill.classList.add('warning');
@@ -2511,10 +3225,12 @@
 
       updateQuota();
       updateArtifactToggle();
-      updateArtifactsSidebar();
       closeArtifactPanel();
       chatInput.disabled = false;
       updateSendBtn();
+
+      // Clear floating chat
+      $('#floatingMessages').innerHTML = '';
 
       const msgs = $('#messages');
       msgs.innerHTML = '';
@@ -2524,7 +3240,9 @@
       welcomeDiv.className = 'welcome';
       welcomeDiv.id = 'welcome';
       welcomeDiv.innerHTML = `
-        <div class="welcome-icon">GW</div>
+        <div class="welcome-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
         <h2>Hola${firstName ? ', ' + escapeHtml(firstName) : ''}</h2>
         <p>Soy tu asistente de ventas de Great Place to Work. Puedo consultar datos de Salesforce, generar reportes y dashboards para ayudarte a tomar mejores decisiones.</p>
         <div class="suggestions">
@@ -2548,22 +3266,356 @@
       `;
       msgs.appendChild(welcomeDiv);
 
-      closeSidebar();
+      switchView('chat');
       chatInput.focus();
     }
 
     /* ================================================================
-       SIDEBAR (MOBILE)
+       MOBILE
        ================================================================ */
-    function openSidebar() {
-      $('#sidebar').classList.add('mobile-open');
-      $('#sidebarOverlay').classList.add('visible');
+    function openMobileNav() {
+      // On mobile we use bottom nav, this is a fallback
     }
 
-    function closeSidebar() {
-      $('#sidebar').classList.remove('mobile-open');
-      $('#sidebarOverlay').classList.remove('visible');
+    /* ================================================================
+       FEATURE 1: CSV EXPORT
+       ================================================================ */
+    function exportCurrentReportCSV() {
+      if (!state.activeReportHtml) return;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(state.activeReportHtml, 'text/html');
+      const tables = doc.querySelectorAll('table');
+      if (tables.length === 0) {
+        alert('No se encontraron tablas en este reporte para exportar.');
+        return;
+      }
+      let csvParts = [];
+      tables.forEach((table, idx) => {
+        // Try to find a preceding heading for the table name
+        let tableName = '';
+        let prev = table.previousElementSibling;
+        for (let i = 0; i < 5 && prev; i++) {
+          if (/^H[1-6]$/.test(prev.tagName)) {
+            tableName = prev.textContent.trim();
+            break;
+          }
+          prev = prev.previousElementSibling;
+        }
+        if (!tableName) tableName = 'Tabla ' + (idx + 1);
+        let rows = [];
+        rows.push(tableName);
+        const headerCells = table.querySelectorAll('thead th, tr:first-child th');
+        if (headerCells.length > 0) {
+          rows.push(Array.from(headerCells).map(c => '"' + c.textContent.trim().replace(/"/g, '""') + '"').join(','));
+        }
+        table.querySelectorAll('tbody tr, tr').forEach(tr => {
+          const tds = tr.querySelectorAll('td');
+          if (tds.length > 0) {
+            rows.push(Array.from(tds).map(c => '"' + c.textContent.trim().replace(/"/g, '""') + '"').join(','));
+          }
+        });
+        csvParts.push(rows.join('\n'));
+      });
+      const csvString = '\uFEFF' + csvParts.join('\n\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = (state.activeReportTitle || 'reporte').replace(/[^a-zA-Z0-9_\-\s]/g, '') + '.csv';
+      link.click();
+      URL.revokeObjectURL(link.href);
     }
+
+    /* ================================================================
+       FEATURE 2: FAVORITES / PIN
+       ================================================================ */
+    state.favorites = new Set(JSON.parse(localStorage.getItem('gptw_favorites') || '[]'));
+    state.myReportFavorites = new Set(JSON.parse(localStorage.getItem('gptw_myreport_favorites') || '[]'));
+
+    function saveFavorites() {
+      localStorage.setItem('gptw_favorites', JSON.stringify([...state.favorites]));
+    }
+    function saveMyReportFavorites() {
+      localStorage.setItem('gptw_myreport_favorites', JSON.stringify([...state.myReportFavorites]));
+    }
+
+    function toggleFavorite(reportId, event) {
+      if (event) { event.stopPropagation(); event.preventDefault(); }
+      if (state.favorites.has(reportId)) {
+        state.favorites.delete(reportId);
+      } else {
+        state.favorites.add(reportId);
+      }
+      saveFavorites();
+      if (state.precachedReports.length > 0) {
+        renderHomeCards(state.precachedReports);
+      }
+    }
+
+    function toggleMyReportFavorite(index, event) {
+      if (event) { event.stopPropagation(); event.preventDefault(); }
+      if (state.myReportFavorites.has(index)) {
+        state.myReportFavorites.delete(index);
+      } else {
+        state.myReportFavorites.add(index);
+      }
+      saveMyReportFavorites();
+      renderMyReports();
+    }
+
+    // Override renderHomeCards to support favorites
+    const _originalRenderHomeCards = renderHomeCards;
+    renderHomeCards = function(reports) {
+      const grid = $('#homeGrid');
+      grid.innerHTML = '';
+      // Sort: favorites first
+      const sorted = [...reports].sort((a, b) => {
+        const aFav = state.favorites.has(a.id) ? 0 : 1;
+        const bFav = state.favorites.has(b.id) ? 0 : 1;
+        return aFav - bFav;
+      });
+      sorted.forEach((r, idx) => {
+        const origIdx = reports.indexOf(r);
+        const colorClass = reportIconColors[origIdx % reportIconColors.length];
+        const iconSvg = reportIcons[origIdx % reportIcons.length];
+        const isFav = state.favorites.has(r.id);
+        const card = document.createElement('div');
+        card.className = 'home-card' + (isFav ? ' is-favorite' : '');
+        card.onclick = () => openReport(r.id);
+        card.innerHTML = `
+          <button class="home-card-fav-btn${isFav ? ' is-fav' : ''}" onclick="toggleFavorite('${r.id}', event)" title="${isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}">
+            <svg class="fav-star-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg class="fav-star-filled" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+          <div class="home-card-top">
+            <div class="home-card-icon ${colorClass}">${iconSvg}</div>
+            <div class="home-card-meta">
+              <div class="home-card-title">${escapeHtml(r.title)}</div>
+              <div class="home-card-summary">${escapeHtml(r.summary || '')}</div>
+            </div>
+          </div>
+          <div class="home-card-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Auto 4am
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    };
+
+    // Override renderMyReports to support favorites
+    const _originalRenderMyReports = renderMyReports;
+    renderMyReports = function() {
+      const emptyEl = $('#myReportsEmpty');
+      const gridEl = $('#myReportsGrid');
+      const countEl = $('#myReportsCount');
+      countEl.textContent = state.myReports.length;
+      if (state.myReports.length === 0) {
+        emptyEl.classList.remove('hidden');
+        gridEl.classList.add('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      gridEl.classList.remove('hidden');
+      gridEl.innerHTML = '';
+      // Build indexed array and sort favorites first
+      const indexed = state.myReports.map((r, i) => ({ r, i }));
+      indexed.sort((a, b) => {
+        const aFav = state.myReportFavorites.has(a.i) ? 0 : 1;
+        const bFav = state.myReportFavorites.has(b.i) ? 0 : 1;
+        return aFav - bFav;
+      });
+      indexed.forEach(({ r, i: idx }) => {
+        const card = document.createElement('div');
+        const isFav = state.myReportFavorites.has(idx);
+        card.className = 'myreport-card' + (isFav ? ' is-favorite' : '');
+        card.onclick = () => openMyReport(idx);
+        const typeBadgeClass = r.type === 'presentation' ? 'presentation' : 'dashboard';
+        const typeLabel = r.type === 'presentation' ? 'Presentacion' : 'Dashboard';
+        card.innerHTML = `
+          <button class="myreport-fav-btn${isFav ? ' is-fav' : ''}" onclick="toggleMyReportFavorite(${idx}, event)" title="${isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}">
+            <svg viewBox="0 0 24 24" fill="${isFav ? '#fff' : 'none'}" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+          <button class="myreport-delete-btn" onclick="deleteMyReport(${idx})" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <div class="myreport-card-preview">
+            <iframe sandbox="allow-scripts" loading="lazy"></iframe>
+          </div>
+          <div class="myreport-card-info">
+            <div class="myreport-card-title">${escapeHtml(r.title)}</div>
+            <div class="myreport-card-bottom">
+              <span class="myreport-type-badge ${typeBadgeClass}">${typeLabel}</span>
+              <span class="myreport-card-time">${r.timestamp}</span>
+            </div>
+          </div>
+        `;
+        const previewIframe = card.querySelector('iframe');
+        if (previewIframe && r.html) {
+          previewIframe.srcdoc = r.html;
+        }
+        gridEl.appendChild(card);
+      });
+    };
+
+    /* ================================================================
+       FEATURE 3: QUERY HISTORY
+       ================================================================ */
+    state.queryHistory = JSON.parse(localStorage.getItem('gptw_history') || '[]');
+
+    function saveQueryHistory() {
+      localStorage.setItem('gptw_history', JSON.stringify(state.queryHistory));
+    }
+
+    function addToQueryHistory(text) {
+      if (!text) return;
+      // Remove duplicates
+      state.queryHistory = state.queryHistory.filter(q => q !== text);
+      // Add to front
+      state.queryHistory.unshift(text);
+      // Limit to 20
+      if (state.queryHistory.length > 20) state.queryHistory = state.queryHistory.slice(0, 20);
+      saveQueryHistory();
+    }
+
+    function toggleHistoryPanel() {
+      const panel = $('#historyPanel');
+      const isOpen = panel.classList.contains('open');
+      if (isOpen) {
+        panel.classList.remove('open');
+      } else {
+        renderHistoryPanel();
+        panel.classList.add('open');
+      }
+    }
+
+    function renderHistoryPanel() {
+      const container = $('#historyItems');
+      if (state.queryHistory.length === 0) {
+        container.innerHTML = '<div class="history-empty">Sin historial de consultas</div>';
+        return;
+      }
+      container.innerHTML = '';
+      state.queryHistory.forEach((q, idx) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const truncated = q.length > 60 ? q.substring(0, 60) + '...' : q;
+        item.innerHTML = `
+          <span class="history-item-text" title="${escapeHtml(q)}">${escapeHtml(truncated)}</span>
+          <button class="history-item-play" onclick="executeHistoryItem(${idx}, event)" title="Ejecutar">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+        `;
+        item.onclick = (e) => {
+          if (e.target.closest('.history-item-play')) return;
+          executeHistoryItem(idx, e);
+        };
+        container.appendChild(item);
+      });
+    }
+
+    function executeHistoryItem(idx, event) {
+      if (event) event.stopPropagation();
+      const text = state.queryHistory[idx];
+      if (!text) return;
+      $('#historyPanel').classList.remove('open');
+      chatInput.value = text;
+      sendMessage();
+    }
+
+    function clearQueryHistory() {
+      state.queryHistory = [];
+      saveQueryHistory();
+      renderHistoryPanel();
+    }
+
+    // Close history panel when clicking outside
+    document.addEventListener('click', (e) => {
+      const panel = $('#historyPanel');
+      const toggleBtn = $('#historyToggleBtn');
+      if (panel && panel.classList.contains('open')) {
+        if (!panel.contains(e.target) && e.target !== toggleBtn && !toggleBtn.contains(e.target)) {
+          panel.classList.remove('open');
+        }
+      }
+    });
+
+    // Patch sendMessage to add to history
+    const _originalSendMessage = sendMessage;
+    sendMessage = function() {
+      const text = chatInput.value.trim();
+      if (text && !state.isWaiting && state.questionCount < MAX_QUESTIONS) {
+        addToQueryHistory(text);
+      }
+      _originalSendMessage();
+    };
+
+    /* ================================================================
+       FEATURE 4: DRILL-DOWN CHIPS
+       ================================================================ */
+    const drilldownChips = {
+      'ejecutivo': ['Por ejecutivo', 'Por segmento LDN', 'Comparar con ano anterior', 'Top 10 cuentas'],
+      'ventas': ['Desglose por ejecutivo', 'Por producto', 'Nuevos vs Renovacion detalle', 'Tendencia mensual'],
+      'pipeline': ['Por ejecutivo', 'Vencidas esta semana', 'Mayor monto', 'Por region'],
+      'comercial': ['Detalle actividades por ejecutivo', 'Sin actividad', 'Llamadas vs emails', 'Productividad'],
+      'metas': ['Meta vs real por LDN', 'Ejecutivos bajo meta', 'Proyeccion de cierre', 'Ranking historico'],
+      'cobranza': ['Facturas mas antiguas', 'Por ejecutivo', 'Vencidas 90+ dias', 'Por cliente'],
+      'cuentas': ['Cuentas sin actividad', 'Nuevas este mes detalle', 'Por sector top', 'Churn rate'],
+    };
+
+    function detectReportType(title) {
+      const lower = (title || '').toLowerCase();
+      for (const key of Object.keys(drilldownChips)) {
+        if (lower.includes(key)) return key;
+      }
+      // Default to ventas
+      return 'ventas';
+    }
+
+    function renderDrilldownChips(title) {
+      const container = $('#reportDrilldown');
+      container.innerHTML = '';
+      const reportType = detectReportType(title);
+      const chips = drilldownChips[reportType] || drilldownChips['ventas'];
+      chips.forEach(chipText => {
+        const btn = document.createElement('button');
+        btn.className = 'drilldown-chip';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>${escapeHtml(chipText)}`;
+        btn.onclick = () => drilldownChipClick(chipText);
+        container.appendChild(btn);
+      });
+    }
+
+    function drilldownChipClick(text) {
+      // Open floating chat if not open
+      if (!state.floatingChatOpen) {
+        toggleFloatingChat();
+      }
+      // Build contextual message
+      const contextMsg = 'Sobre el reporte "' + state.activeReportTitle + '": ' + text;
+      const input = $('#floatingInput');
+      input.value = contextMsg;
+      sendFloatingMessage();
+    }
+
+    // Patch openReport to render drilldown chips
+    const _originalOpenReport = openReport;
+    openReport = async function(reportId) {
+      await _originalOpenReport(reportId);
+      renderDrilldownChips(state.activeReportTitle);
+    };
+
+    // Patch openMyReport to render drilldown chips
+    const _originalOpenMyReport = openMyReport;
+    openMyReport = function(index) {
+      _originalOpenMyReport(index);
+      renderDrilldownChips(state.activeReportTitle);
+    };
+
+    /* ================================================================
+       INIT
+       ================================================================ */
+    // Set initial date
+    $('#homeDate').textContent = formatDate();
   </script>
 </body>
 </html>
