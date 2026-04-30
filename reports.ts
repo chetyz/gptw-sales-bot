@@ -146,8 +146,8 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
     query(`SELECT Segm_Neg__c ldn, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c`),
     query(`SELECT Estatus_anual__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
     query(`SELECT Estatus_anual__c tipo, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
-    query(`SELECT CALENDAR_MONTH(Fecha_de_Emision__c) mes, SUM(Total__c) total FROM Invoice__c WHERE Fecha_de_Emision__c = THIS_YEAR AND Estatus__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emision__c)`),
-    query(`SELECT CALENDAR_MONTH(Fecha_de_Emision__c) mes, SUM(Total__c) total FROM Invoice__c WHERE Fecha_de_Emision__c = LAST_YEAR AND Estatus__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emision__c)`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Fecha_de_Emisi_n__c = THIS_YEAR AND Estatus_de__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c)`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Fecha_de_Emisi_n__c = LAST_YEAR AND Estatus_de__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT Product2.Name prod, SUM(TotalPrice) total, COUNT(Id) cnt FROM OpportunityLineItem WHERE Opportunity.StageName = 'Ganada!' AND Opportunity.CloseDate = THIS_YEAR AND Opportunity.CurrencyIsoCode = 'MXN' GROUP BY Product2.Name ORDER BY SUM(TotalPrice) DESC LIMIT 10`),
@@ -1000,7 +1000,7 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Task WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT CALENDAR_YEAR(CloseDate) y, StageName s, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE CurrencyIsoCode='MXN' AND CloseDate >= ${year - 3}-01-01 AND CloseDate <= ${year}-12-31 AND StageName IN ('Ganada!','Perdida','Cancelada') GROUP BY CALENDAR_YEAR(CloseDate), StageName ORDER BY CALENDAR_YEAR(CloseDate)`),
     query(`SELECT Account.Name a, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Amount != null GROUP BY Account.Name ORDER BY SUM(Amount) DESC NULLS LAST LIMIT 15`),
-    query(`SELECT Estatus__c e, SUM(Total__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emision__c = THIS_YEAR GROUP BY Estatus__c`),
+    query(`SELECT Estatus_de__c e, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c = THIS_YEAR GROUP BY Estatus_de__c`),
   ]);
 
   // Get user names for the owner IDs we found
