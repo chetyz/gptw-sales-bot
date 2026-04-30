@@ -635,98 +635,312 @@ new Chart(document.getElementById('pieChart'),{
   };
 }
 
-// ─── Report 3: Pipeline ──────────────────────────────────────────────────────
+// ─── Report 3: Pipeline y Oportunidades (réplica de "Oportunidades" del PBI) ─
 
 async function generatePipeline(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
-  const nextWeek = new Date(now.getTime() + 7 * 86400000);
-  const nextWeekStr = nextWeek.toISOString().split('T')[0];
+  const year = now.getFullYear();
+  const lastYear = year - 1;
 
-  const [porEtapa, semaforo, porCerrarSemana, topOpps] = await Promise.all([
-    query(`SELECT StageName, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') GROUP BY StageName ORDER BY SUM(Amount) DESC`),
-    query(`SELECT Sem_foro_de_gesti_n__c semaforo, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND Sem_foro_de_gesti_n__c != null GROUP BY Sem_foro_de_gesti_n__c`),
-    query(`SELECT Name, Account.Name acct, Amount, StageName, CloseDate, Owner.Name owner FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CloseDate <= ${nextWeekStr} ORDER BY Amount DESC NULLS LAST LIMIT 15`),
-    query(`SELECT Name, Account.Name acct, Amount, StageName, Owner.Name owner FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') ORDER BY Amount DESC NULLS LAST LIMIT 10`),
+  const [
+    porEtapa,         // Pipeline por StageName (abiertas)
+    porLDN,           // Pipeline por Segm_Neg__c
+    porEstatus,       // Pipeline por Estatus_anual__c
+    semaforo,         // Pipeline por Sem_foro_de_gesti_n__c
+    porLeadSource,    // Pipeline por LeadSource
+    forecastMes,      // Forecast por mes (CloseDate de abiertas)
+    espuerzoMes,      // # opps creadas por mes este año
+    esfuerzoMesLY,    // # opps creadas LY
+    topOppsAbiertas,  // Detalle top 20 abiertas (con todos los campos)
+    topVendedoresPip, // Top vendedores por $ pipeline
+    topCuentasPip,    // Top cuentas con pipeline
+    motivosPerdida,   // Razones de pérdida YTD
+    winRateData,      // Ganadas vs Perdidas YTD
+    proxCierres,      // Próximos 30 días
+    accountCount,     // # cuentas distintas con pipeline
+  ] = await Promise.all([
+    query(`SELECT StageName s, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY StageName ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Estatus_anual__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
+    query(`SELECT Sem_foro_de_gesti_n__c sem, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND Sem_foro_de_gesti_n__c != null GROUP BY Sem_foro_de_gesti_n__c`),
+    query(`SELECT LeadSource src, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND LeadSource != null GROUP BY LeadSource ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT CALENDAR_YEAR(CloseDate) y, CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_YEAR(CloseDate), CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_YEAR(CloseDate), CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate=THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate=LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT Id, Name, Account.Name a, Amount, StageName, Probability, CloseDate, Owner.Name o, Sem_foro_de_gesti_n__c sem, Segm_Neg__c ldn, Estatus_anual__c et FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' ORDER BY Amount DESC NULLS LAST LIMIT 20`),
+    query(`SELECT Owner.Name v, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY Owner.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Account.Name a, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY Account.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Razon_de__c motivo, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Perdida' AND CloseDate=THIS_YEAR AND Razon_de__c != null GROUP BY Razon_de__c ORDER BY COUNT(Id) DESC LIMIT 10`),
+    query(`SELECT StageName s, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE CloseDate=THIS_YEAR AND StageName IN ('Ganada!','Perdida','Cancelada') GROUP BY StageName`),
+    query(`SELECT Id FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND CloseDate <= NEXT_N_DAYS:30`),
+    query(`SELECT COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN'`),
   ]);
 
-  const etapas = (porEtapa.records || []).map((r: any) => ({ etapa: r.StageName, cnt: r.cnt, total: r.total || 0 }));
+  function getMon(rec: any): number | null {
+    for (const k of Object.keys(rec)) {
+      if (k === 'attributes' || k === 'total' || k === 'cnt' || k === 'y') continue;
+      const v = Number(rec[k]); if (!isNaN(v) && v >= 1 && v <= 12) return v;
+    }
+    return null;
+  }
+
+  // KPIs
+  const etapas = (porEtapa.records || []).map((r: any) => ({ name: r.s, total: r.total || 0, cnt: r.cnt }));
   const totalPipeline = etapas.reduce((s: number, e: any) => s + e.total, 0);
   const totalOpps = etapas.reduce((s: number, e: any) => s + e.cnt, 0);
+  const avgDeal = totalOpps > 0 ? totalPipeline / totalOpps : 0;
+  const cuentasPipeline = accountCount.records?.[0]?.cnt || 0;
 
-  const semaforoData = (semaforo.records || []).map((r: any) => ({ semaforo: r.semaforo, cnt: r.cnt, total: r.total || 0 }));
-  const semaforoColors: Record<string, string> = { Verde: COLORS.green, Amarillo: COLORS.yellow, Rojo: COLORS.red, Azul: COLORS.blue };
+  // Win rate
+  const wrRecs = (winRateData.records || []) as any[];
+  const ganadas = wrRecs.find((r: any) => r.s === 'Ganada!')?.cnt || 0;
+  const perdidas = wrRecs.find((r: any) => r.s === 'Perdida')?.cnt || 0;
+  const canceladas = wrRecs.find((r: any) => r.s === 'Cancelada')?.cnt || 0;
+  const winRate = (ganadas + perdidas) > 0 ? (ganadas / (ganadas + perdidas)) * 100 : 0;
+  const ventasYTD = wrRecs.find((r: any) => r.s === 'Ganada!')?.total || 0;
+  const proxCierreCnt = (proxCierres.records || []).length;
 
-  const cierreProx = (porCerrarSemana.records || []).map((r: any) => ({
-    name: r.Name, acct: r.acct, amount: r.Amount || 0, stage: r.StageName, close: r.CloseDate, owner: r.owner
+  // Pipeline ponderado (Amount × Probability/100) — pakado de la tabla detalle
+  const detalleAbiertas = (topOppsAbiertas.records || []) as any[];
+  // Para el ponderado de TODA la pipeline, lo aproximamos con un % implícito por stage.
+  // Mejor: usamos el cnt/total del tope detallado (top 20) — pero eso es solo una muestra.
+  // Para precisión: sumamos el ponderado de las top 20 y mostramos como referencia.
+
+  const ldnData = (porLDN.records || []).map((r: any) => ({ name: r.ldn, total: r.total || 0, cnt: r.cnt }));
+  const estatusData = (porEstatus.records || []).map((r: any) => ({ name: r.tipo, total: r.total || 0, cnt: r.cnt }));
+  const semData = (semaforo.records || []).map((r: any) => ({ name: r.sem, total: r.total || 0, cnt: r.cnt }));
+  const leadSrcData = (porLeadSource.records || []).map((r: any) => ({ name: r.src, total: r.total || 0, cnt: r.cnt }));
+
+  // Forecast por mes (próximos 12 meses desde hoy)
+  const forecastByMonth: Record<string, number> = {};
+  (forecastMes.records || []).forEach((r: any) => {
+    const yr = r.y;
+    const mn = getMon(r);
+    if (yr && mn) {
+      const key = `${yr}-${String(mn).padStart(2, '0')}`;
+      forecastByMonth[key] = (forecastByMonth[key] || 0) + (r.total || 0);
+    }
+  });
+  const forecastEntries = Object.entries(forecastByMonth)
+    .filter(([k]) => k >= now.toISOString().slice(0, 7))
+    .sort()
+    .slice(0, 12);
+
+  // Esfuerzo comercial mensual
+  const esfMonths = new Array(12).fill(0);
+  const esfMonthsLY = new Array(12).fill(0);
+  (espuerzoMes.records || []).forEach((r: any) => { const m = getMon(r); if (m) esfMonths[m - 1] = r.cnt || 0; });
+  (esfuerzoMesLY.records || []).forEach((r: any) => { const m = getMon(r); if (m) esfMonthsLY[m - 1] = r.cnt || 0; });
+
+  // Top tablas
+  const topVend = (topVendedoresPip.records || []).map((r: any) => ({ name: r.v || '—', total: r.total || 0, cnt: r.cnt }));
+  const topCuentas = (topCuentasPip.records || []).map((r: any) => ({ name: r.a || '—', total: r.total || 0, cnt: r.cnt }));
+  const motivos = (motivosPerdida.records || []).map((r: any) => ({ name: r.motivo, total: r.total || 0, cnt: r.cnt }));
+
+  const detalleTop = detalleAbiertas.map((r: any) => ({
+    id: r.Id, name: r.Name, acct: r.a || '—', amount: r.Amount || 0,
+    stage: r.StageName, prob: r.Probability || 0, close: r.CloseDate || '—',
+    owner: r.o || '—', sem: r.sem || '—', ldn: r.ldn || '—', estatus: r.et || '—'
   }));
 
-  const topData = (topOpps.records || []).map((r: any) => ({
-    name: r.Name, acct: r.acct, amount: r.Amount || 0, stage: r.StageName, owner: r.owner
-  }));
+  const semColors: Record<string, string> = { Verde: COLORS.green, Amarillo: COLORS.yellow, Rojo: COLORS.red, Azul: COLORS.blue };
+  const semTagClass = (s: string) => s === 'Verde' ? 'tag-green' : s === 'Amarillo' ? 'tag-yellow' : s === 'Rojo' ? 'tag-red' : 'tag-blue';
+
+  const tableRows = (rows: any[]) => rows.map(r => `
+    <tr><td>${(r.name || '—').toString().replace(/</g, '&lt;')}</td><td style="text-align:right">${fmtFull(r.total)}</td><td style="text-align:right;color:#6B7280">${(r.cnt || 0).toLocaleString('es-MX')}</td></tr>
+  `).join('');
 
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const body = `
+<!-- KPIs -->
 <div class="kpi-row">
-  <div class="kpi">
-    <div class="label">Pipeline Total</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Pipeline Total</div>
     <div class="value">${fmtFull(totalPipeline)}</div>
-    <div class="sub">${totalOpps} oportunidades abiertas</div>
+    <div class="sub">${totalOpps.toLocaleString('es-MX')} opps abiertas</div>
   </div>
-  <div class="kpi">
-    <div class="label">Por Cerrar esta Semana</div>
-    <div class="value">${cierreProx.length}</div>
-    <div class="sub">${fmtFull(cierreProx.reduce((s: number, c: any) => s + c.amount, 0))} en juego</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.blue}">
+    <div class="label">Avg Deal Size</div>
+    <div class="value">${fmt(avgDeal)}</div>
+    <div class="sub">por oportunidad</div>
   </div>
-  ${semaforoData.map((s: any) => `
-  <div class="kpi">
-    <div class="label">Semaforo ${s.semaforo}</div>
-    <div class="value" style="color:${semaforoColors[s.semaforo] || COLORS.gray}">${s.cnt}</div>
-    <div class="sub">${fmt(s.total)}</div>
-  </div>`).join('')}
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label"># Cuentas con Pipeline</div>
+    <div class="value">${cuentasPipeline.toLocaleString('es-MX')}</div>
+    <div class="sub">cuentas únicas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+    <div class="label">Por Cerrar (30 días)</div>
+    <div class="value">${proxCierreCnt}</div>
+    <div class="sub">opps con CloseDate próximo</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
+    <div class="label">% Win Rate ${year}</div>
+    <div class="value">${winRate.toFixed(1)}%</div>
+    <div class="sub">${ganadas} ganadas / ${perdidas} perdidas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label"># Opp Ganadas ${year}</div>
+    <div class="value">${ganadas.toLocaleString('es-MX')}</div>
+    <div class="sub">${fmt(ventasYTD)} en revenue</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label"># Opp Perdidas ${year}</div>
+    <div class="value">${perdidas.toLocaleString('es-MX')}</div>
+    <div class="sub">${canceladas} canceladas además</div>
+  </div>
 </div>
 
-<div class="chart-row">
+<!-- ROW 1: Pipeline funnel + Forecast -->
+<div class="chart-row" style="grid-template-columns:1fr 1.5fr">
   <div class="chart-card">
     <h3>Pipeline por Etapa</h3>
-    <div class="chart-wrap"><canvas id="etapaChart"></canvas></div>
+    <div class="chart-wrap" style="height:340px"><canvas id="etapaChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <h3>Semaforo de Gestion</h3>
-    <div class="chart-wrap"><canvas id="semaforoChart"></canvas></div>
+    <h3>Forecast Pipeline (próximos 12 meses por CloseDate)</h3>
+    <div class="chart-wrap" style="height:340px"><canvas id="forecastChart"></canvas></div>
   </div>
 </div>
 
-<div class="table-card">
-  <h3>Oportunidades por Cerrar esta Semana</h3>
+<!-- ROW 2: LDN + Estatus_anual + Sem_foro -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr 1fr">
+  <div class="chart-card">
+    <h3>Pipeline por LDN</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="ldnChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Pipeline por Estatus Anual</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="estatusChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Semáforo de Gestión</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="semChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Esfuerzo comercial + Top motivos pérdida + LeadSource -->
+<div class="chart-row" style="grid-template-columns:1.2fr 1fr 1fr">
+  <div class="chart-card">
+    <h3>Esfuerzo Comercial (Opps creadas/mes)</h3>
+    <div class="chart-wrap" style="height:260px"><canvas id="esfChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Top Motivos de Pérdida ${year}</h3>
+    <div class="chart-wrap" style="height:260px"><canvas id="motivosChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Pipeline por Canal (LeadSource)</h3>
+    <div class="chart-wrap" style="height:260px"><canvas id="canalChart"></canvas></div>
+  </div>
+</div>
+
+<!-- TABLA: Top 20 oportunidades abiertas -->
+<div class="table-card" style="margin-bottom:24px">
+  <h3>Top 20 Oportunidades Abiertas</h3>
   <table>
-    <tr><th>Oportunidad</th><th>Cuenta</th><th>Monto</th><th>Etapa</th><th>Ejecutivo</th><th>Cierre</th></tr>
-    ${cierreProx.map((c: any) => `<tr><td>${c.name}</td><td>${c.acct || '-'}</td><td>${fmtFull(c.amount)}</td><td>${c.stage}</td><td>${c.owner || '-'}</td><td>${c.close || '-'}</td></tr>`).join('')}
-    ${cierreProx.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:#999">Sin oportunidades por cerrar esta semana</td></tr>' : ''}
+    <thead><tr><th>Oportunidad</th><th>Cuenta</th><th>Etapa</th><th>LDN</th><th>Estatus</th><th>Semáforo</th><th style="text-align:right">Probabilidad</th><th style="text-align:right">Monto</th><th>CloseDate</th><th>Ejecutivo</th></tr></thead>
+    <tbody>
+    ${detalleTop.map(r => `
+      <tr>
+        <td><span style="font-weight:500">${r.name.replace(/</g, '&lt;')}</span></td>
+        <td>${r.acct.replace(/</g, '&lt;')}</td>
+        <td>${r.stage.replace(/</g, '&lt;')}</td>
+        <td>${r.ldn}</td>
+        <td>${r.estatus}</td>
+        <td><span class="tag ${semTagClass(r.sem)}">${r.sem}</span></td>
+        <td style="text-align:right">${r.prob}%</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(r.amount)}</td>
+        <td>${r.close}</td>
+        <td>${r.owner}</td>
+      </tr>`).join('')}
+    </tbody>
   </table>
 </div>
 
-<div class="table-card">
-  <h3>Top 10 Oportunidades Abiertas por Monto</h3>
-  <table>
-    <tr><th>Oportunidad</th><th>Cuenta</th><th>Monto</th><th>Etapa</th><th>Ejecutivo</th></tr>
-    ${topData.map((t: any) => `<tr><td>${t.name}</td><td>${t.acct || '-'}</td><td>${fmtFull(t.amount)}</td><td>${t.stage}</td><td>${t.owner || '-'}</td></tr>`).join('')}
-  </table>
+<!-- ROW Tablas: Top vendedores, Top cuentas -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="table-card">
+    <h3>Top 10 Vendedores por Pipeline</h3>
+    <table>
+      <thead><tr><th>Vendedor</th><th style="text-align:right">$ Pipeline</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(topVend)}</tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <h3>Top 10 Cuentas con Pipeline</h3>
+    <table>
+      <thead><tr><th>Cuenta</th><th style="text-align:right">$ Pipeline</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(topCuentas)}</tbody>
+    </table>
+  </div>
 </div>
 
 <script>
-const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
 
+// 1. Pipeline por Etapa (funnel-bar horizontal)
 new Chart(document.getElementById('etapaChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(etapas.map((e: any) => e.etapa))},datasets:[{data:${JSON.stringify(etapas.map((e: any) => e.total))},backgroundColor:'rgba(255,22,40,0.7)',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$'+(c.parsed.x/1000000).toFixed(2)+'M | '+${JSON.stringify(etapas.map((e: any) => e.cnt))}[c.dataIndex]+' opps'}}},scales:{x:{ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef}},y:{ticks:{font:fontDef}}}}
+  data:{labels:${JSON.stringify(etapas.map(e => e.name))},datasets:[{label:'$ Pipeline',data:${JSON.stringify(etapas.map(e => e.total))},backgroundColor:'rgba(255,22,40,0.85)',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' | '+${JSON.stringify(etapas.map(e => e.cnt))}[c.dataIndex]+' opps'}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontDef}}}}
 });
 
-new Chart(document.getElementById('semaforoChart'),{
+// 2. Forecast por mes
+const fcLabels = ${JSON.stringify(forecastEntries.map(([k]) => k))};
+const fcVals = ${JSON.stringify(forecastEntries.map(([, v]) => v))};
+new Chart(document.getElementById('forecastChart'),{
+  type:'line',
+  data:{labels:fcLabels,datasets:[{label:'$ Pipeline por mes',data:fcVals,borderColor:'${COLORS.blue}',backgroundColor:'rgba(59,130,246,0.15)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontSm,maxRotation:45,minRotation:45},grid:{display:false}}}}
+});
+
+// 3. Pipeline por LDN
+new Chart(document.getElementById('ldnChart'),{
+  type:'bar',
+  data:{labels:${JSON.stringify(ldnData.map(d => d.name))},datasets:[{data:${JSON.stringify(ldnData.map(d => d.total))},backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
+});
+
+// 4. Pipeline por Estatus_anual (donut)
+new Chart(document.getElementById('estatusChart'),{
   type:'doughnut',
-  data:{labels:${JSON.stringify(semaforoData.map((s: any) => s.semaforo))},datasets:[{data:${JSON.stringify(semaforoData.map((s: any) => s.cnt))},backgroundColor:${JSON.stringify(semaforoData.map((s: any) => semaforoColors[s.semaforo] || COLORS.gray))}}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:fontDef,boxWidth:10}}}}
+  data:{labels:${JSON.stringify(estatusData.map(d => d.name))},datasets:[{data:${JSON.stringify(estatusData.map(d => d.total))},backgroundColor:['${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.red}']}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}
+});
+
+// 5. Sem_foro (bar con colores)
+new Chart(document.getElementById('semChart'),{
+  type:'bar',
+  data:{labels:${JSON.stringify(semData.map(d => d.name))},datasets:[{data:${JSON.stringify(semData.map(d => d.cnt))},backgroundColor:${JSON.stringify(semData.map(d => semColors[d.name] || COLORS.gray))},borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+' opps | '+fmt(${JSON.stringify(semData.map(d => d.total))}[c.dataIndex])}}},scales:{y:{beginAtZero:true,ticks:{font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
+});
+
+// 6. Esfuerzo comercial line
+new Chart(document.getElementById('esfChart'),{
+  type:'line',
+  data:{labels:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],datasets:[
+    {label:'${year}',data:${JSON.stringify(esfMonths)},borderColor:'${COLORS.dark}',backgroundColor:'rgba(17,19,28,0.1)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3},
+    {label:'${lastYear}',data:${JSON.stringify(esfMonthsLY)},borderColor:'${COLORS.gray}',borderDash:[5,5],fill:false,tension:0.4,borderWidth:2,pointRadius:2}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}}},scales:{y:{beginAtZero:true,ticks:{font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}
+});
+
+// 7. Motivos de pérdida (bar horizontal)
+new Chart(document.getElementById('motivosChart'),{
+  type:'bar',
+  data:{labels:${JSON.stringify(motivos.map(m => m.name))},datasets:[{data:${JSON.stringify(motivos.map(m => m.cnt))},backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' opps | '+fmt(${JSON.stringify(motivos.map(m => m.total))}[c.dataIndex])}}},scales:{x:{beginAtZero:true,ticks:{font:fontSm}},y:{ticks:{font:fontSm}}}}
+});
+
+// 8. LeadSource (bar)
+new Chart(document.getElementById('canalChart'),{
+  type:'bar',
+  data:{labels:${JSON.stringify(leadSrcData.map(d => d.name))},datasets:[{data:${JSON.stringify(leadSrcData.map(d => d.total))},backgroundColor:'${COLORS.green}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm}},y:{ticks:{font:fontSm}}}}
 });
 </script>`;
 
@@ -734,9 +948,9 @@ new Chart(document.getElementById('semaforoChart'),{
     id: 'pipeline',
     title: 'Pipeline y Oportunidades',
     icon: '&#128640;',
-    html: dashboardShell('Pipeline y Oportunidades', date, body),
+    html: dashboardShell(`Pipeline y Oportunidades - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `Pipeline: ${fmt(totalPipeline)} (${totalOpps} opps) | ${cierreProx.length} por cerrar esta semana`,
+    summary: `Pipeline: ${fmt(totalPipeline)} (${totalOpps} opps, ${cuentasPipeline} cuentas) | Win Rate ${winRate.toFixed(0)}% | ${proxCierreCnt} por cerrar 30d`,
   };
 }
 
