@@ -108,34 +108,58 @@ ${body}
 </html>`;
 }
 
-// ─── Report 1: Ejecutivo ─────────────────────────────────────────────────────
+// ─── Report 1: Ejecutivo (Visión General estilo Power BI) ───────────────────
+//
+// Replica de la página "Visión General" del Power BI Master GPTW.
+// Métricas: $ Venta, $ Facturación x Emisión, $ Venta Suscripción (LDN1+LDN4),
+// $ Venta Soluciones (LDN2+LDN3), Esfuerzo Comercial, # Opp Totales, % Var Venta LY.
 
 async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
   const year = now.getFullYear();
   const lastYear = year - 1;
 
-  const [ventasYTD, ventasLY, ticketProm, cuentasTipo, ventasMesActual, ventasMesAnterior] = await Promise.all([
-    query(`SELECT SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN'`),
-    query(`SELECT SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN'`),
-    query(`SELECT AVG(Amount) avg FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN'`),
+  const [
+    ventasMesActual,      // Venta por mes año actual
+    ventasMesAnterior,    // Venta por mes LY (mismo período)
+    ventasLDN,            // Venta por LDN (Segm_Neg__c) año actual
+    ventasLDNLY,          // Venta por LDN LY
+    ventasEstatus,        // Venta por Estatus_anual__c
+    ventasEstatusLY,      // Venta por Estatus_anual__c LY
+    facturacionEmision,   // Facturación emitida YTD
+    facturacionEmisionLY, // Facturación emitida LY
+    esfuerzoMes,          // # opps creadas por mes (esfuerzo comercial)
+    esfuerzoMesLY,        // # opps creadas por mes LY
+    porProducto,          // Top 10 productos
+    porLeadSource,        // Por canal (LeadSource)
+    porTipoCuenta,        // Por Tipo_de_Cuenta__c (Activo, Nuevo, Perdido…)
+    porStage,             // Por etapa
+    topVendedores,        // Top 10 owners
+    topCuentas,           // Top 10 cuentas
+    porRango,             // Por Rango_de_Colaboradores__c (Categoría empresa)
+    porRegion,            // Por Region__c
+    cuentasTipo,          // Distribución cuentas (sin filtro de fecha)
+  ] = await Promise.all([
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c`),
+    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c`),
+    query(`SELECT Estatus_anual__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
+    query(`SELECT Estatus_anual__c tipo, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emision__c) mes, SUM(Total__c) total FROM Invoice__c WHERE Fecha_de_Emision__c = THIS_YEAR AND Estatus__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emision__c)`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emision__c) mes, SUM(Total__c) total FROM Invoice__c WHERE Fecha_de_Emision__c = LAST_YEAR AND Estatus__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emision__c)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT Producto_Oportunidad__c prod, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Producto_Oportunidad__c != null GROUP BY Producto_Oportunidad__c ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT LeadSource src, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND LeadSource != null GROUP BY LeadSource ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Account.Tipo_de_Cuenta__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Account.Tipo_de_Cuenta__c`),
+    query(`SELECT StageName stage, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY StageName ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Owner.Name vendedor, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Owner.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Account.Name cuenta, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Account.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Account.Rango_de_Colaboradores__c rango, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Account.Rango_de_Colaboradores__c != null GROUP BY Account.Rango_de_Colaboradores__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Account.Region__c region, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Account.Region__c != null GROUP BY Account.Region__c ORDER BY SUM(Amount) DESC`),
     query(`SELECT Tipo_de_Cuenta__c tipo, COUNT(Id) cnt FROM Account WHERE Tipo_de_Cuenta__c != null GROUP BY Tipo_de_Cuenta__c ORDER BY COUNT(Id) DESC`),
-    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
-    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
   ]);
-
-  const totalYTD = ventasYTD.records?.[0]?.total || 0;
-  const totalLY = ventasLY.records?.[0]?.total || 0;
-  const cntYTD = ventasYTD.records?.[0]?.cnt || 0;
-  const ticket = ticketProm.records?.[0]?.avg || 0;
-  const yoyChange = pctChange(totalYTD, totalLY);
-
-  // Build monthly data arrays
-  const monthDataCurrent = new Array(12).fill(0);
-  const monthDataLast = new Array(12).fill(0);
-  let accumCurrent = 0, accumLast = 0;
-  const accumCurrentArr: number[] = [];
-  const accumLastArr: number[] = [];
 
   function getMonthNum(rec: any): number | null {
     for (const k of Object.keys(rec)) {
@@ -144,24 +168,64 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
     }
     return null;
   }
-  (ventasMesActual.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthDataCurrent[m - 1] = r.total || 0; });
-  (ventasMesAnterior.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthDataLast[m - 1] = r.total || 0; });
 
-  for (let i = 0; i < 12; i++) {
-    accumCurrent += monthDataCurrent[i];
-    accumLast += monthDataLast[i];
-    accumCurrentArr.push(accumCurrent);
-    accumLastArr.push(accumLast);
-  }
+  // Build monthly data arrays — all 12 months, filtros client-side
+  const monthVenta = new Array(12).fill(0);
+  const monthVentaLY = new Array(12).fill(0);
+  const monthFact = new Array(12).fill(0);
+  const monthFactLY = new Array(12).fill(0);
+  const monthEsfuerzo = new Array(12).fill(0);
+  const monthEsfuerzoLY = new Array(12).fill(0);
 
-  // Cuentas breakdown
+  (ventasMesActual.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthVenta[m - 1] = r.total || 0; });
+  (ventasMesAnterior.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthVentaLY[m - 1] = r.total || 0; });
+  (facturacionEmision.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthFact[m - 1] = r.total || 0; });
+  (facturacionEmisionLY.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthFactLY[m - 1] = r.total || 0; });
+  (esfuerzoMes.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthEsfuerzo[m - 1] = r.cnt || 0; });
+  (esfuerzoMesLY.records || []).forEach((r: any) => { const m = getMonthNum(r); if (m) monthEsfuerzoLY[m - 1] = r.cnt || 0; });
+
+  // LDN breakdown — Suscripción = LDN1+LDN4, Soluciones = LDN2+LDN3 (medidas DAX)
+  const ldnRecs = (ventasLDN.records || []) as any[];
+  const ldnLYRecs = (ventasLDNLY.records || []) as any[];
+  const ldnTotal = (records: any[], match: string[]) => records
+    .filter(r => match.some(m => (r.ldn || '').includes(m)))
+    .reduce((s, r) => s + (r.total || 0), 0);
+
+  const ventaSuscripcion = ldnTotal(ldnRecs, ['LDN 1', 'LDN 4']);
+  const ventaSoluciones = ldnTotal(ldnRecs, ['LDN 2', 'LDN 3']);
+  const ventaSuscripcionLY = ldnTotal(ldnLYRecs, ['LDN 1', 'LDN 4']);
+  const ventaSolucionesLY = ldnTotal(ldnLYRecs, ['LDN 2', 'LDN 3']);
+
+  // Cuentas distribución
   const cuentasData = (cuentasTipo.records || []).map((r: any) => ({ tipo: r.tipo, cnt: r.cnt }));
   const cuentasActivas = cuentasData.find((c: any) => c.tipo?.includes('Activo'))?.cnt || 0;
   const cuentasPerdidas = cuentasData.find((c: any) => c.tipo?.includes('Perdido'))?.cnt || 0;
-  const cuentasNuevas = cuentasData.find((c: any) => c.tipo?.includes('Nuevo'))?.cnt || 0;
+
+  // Estatus_anual (Nuevo/Renovación/Adicional)
+  const estatusActual = (ventasEstatus.records || []).map((r: any) => ({ tipo: r.tipo, total: r.total || 0, cnt: r.cnt }));
+  const estatusLY = (ventasEstatusLY.records || []).map((r: any) => ({ tipo: r.tipo, total: r.total || 0 }));
+
+  // Top tablas
+  const topVend = (topVendedores.records || []).map((r: any) => ({ name: r.vendedor, total: r.total || 0, cnt: r.cnt }));
+  const topAcc = (topCuentas.records || []).map((r: any) => ({ name: r.cuenta, total: r.total || 0, cnt: r.cnt }));
+  const productos = (porProducto.records || []).map((r: any) => ({ name: r.prod, total: r.total || 0, cnt: r.cnt }));
+  const leadSources = (porLeadSource.records || []).map((r: any) => ({ name: r.src, total: r.total || 0, cnt: r.cnt }));
+  const tipoCuenta = (porTipoCuenta.records || []).map((r: any) => ({ name: r.tipo || 'Sin tipo', total: r.total || 0, cnt: r.cnt }));
+  const stages = (porStage.records || []).map((r: any) => ({ name: r.stage, total: r.total || 0, cnt: r.cnt }));
+  const rangos = (porRango.records || []).map((r: any) => ({ name: r.rango, total: r.total || 0, cnt: r.cnt }));
+  const regiones = (porRegion.records || []).map((r: any) => ({ name: r.region, total: r.total || 0, cnt: r.cnt }));
+
+  const totalYTD = monthVenta.reduce((a, b) => a + b, 0);
+  const totalLY = monthVentaLY.reduce((a, b) => a + b, 0);
+  const yoyChange = pctChange(totalYTD, totalLY);
 
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const currentMonth = now.getMonth(); // 0-indexed
+  const currentMonth = now.getMonth();
+
+  // ─── HTML ─────────────────────────────────────────────────────────────────
+  const tableRows = (rows: any[], col1: string, formatTotal = true) => rows.map(r => `
+    <tr><td>${(r.name || '—').toString().replace(/</g, '&lt;')}</td><td style="text-align:right">${formatTotal ? fmtFull(r.total) : (r.total || 0).toLocaleString('es-MX')}</td><td style="text-align:right;color:#6B7280">${(r.cnt || 0).toLocaleString('es-MX')}</td></tr>
+  `).join('');
 
   const body = `
 <!-- FILTERS BAR -->
@@ -193,48 +257,133 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
   </div>
 </div>
 
-<!-- KPIs (dynamic) -->
+<!-- KPIs (replica de las cards de Power BI: $ Venta, $ Facturación x Emisión, $ Venta Suscripción, $ Venta Soluciones, Esfuerzo Comercial, # Opp Totales, % Var Venta LY) -->
 <div class="kpi-row" id="kpiRow"></div>
 
-<!-- Charts -->
-<div class="chart-row">
-  <div class="chart-card" style="grid-column:1/-1">
-    <h3 id="accumTitle">Venta Acumulada ${year}</h3>
-    <div class="chart-wrap" style="height:300px"><canvas id="accumChart"></canvas></div>
+<!-- ROW 1: Venta mensual (column con LY tooltip) + Esfuerzo Comercial (line) + Venta YTD por LDN (donut) -->
+<div class="chart-row" style="grid-template-columns:2fr 1.2fr 1fr">
+  <div class="chart-card">
+    <h3 id="monthTitle">Venta por Mes ${year} vs ${lastYear}</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="monthChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3 id="esfuerzoTitle">Esfuerzo Comercial (Opps Creadas)</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="esfuerzoChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Venta por Tipo (Estatus Anual)</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="estatusChart"></canvas></div>
   </div>
 </div>
 
+<!-- ROW 2: Venta acumulada (line full width) -->
 <div class="chart-row">
+  <div class="chart-card" style="grid-column:1/-1">
+    <h3 id="accumTitle">Venta Acumulada ${year}</h3>
+    <div class="chart-wrap" style="height:260px"><canvas id="accumChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Categoría empresa (rangos colaboradores) + Producto + LeadSource + Región -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
   <div class="chart-card">
-    <h3 id="monthTitle">Venta Mensual ${year}</h3>
-    <div class="chart-wrap"><canvas id="monthChart"></canvas></div>
+    <h3>Venta por Categoría Empresa</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="rangoChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <h3>Distribucion de Cuentas</h3>
-    <div class="chart-wrap"><canvas id="cuentasChart"></canvas></div>
+    <h3>Top Productos</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="productoChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Venta por Canal (LeadSource)</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="canalChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Venta por Región</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="regionChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 4: Tablas Top vendedores + Top cuentas -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="table-card">
+    <h3>Top 10 Vendedores YTD</h3>
+    <table>
+      <thead><tr><th>Vendedor</th><th style="text-align:right">$ Venta</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(topVend, 'Vendedor')}</tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <h3>Top 10 Cuentas YTD</h3>
+    <table>
+      <thead><tr><th>Cuenta</th><th style="text-align:right">$ Venta</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(topAcc, 'Cuenta')}</tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ROW 5: Tablas Stage + Tipo de Cuenta -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="table-card">
+    <h3>Por Etapa de Oportunidad ${year}</h3>
+    <table>
+      <thead><tr><th>Etapa</th><th style="text-align:right">$ Total</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(stages, 'Etapa')}</tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <h3>Por Tipo de Cuenta YTD</h3>
+    <table>
+      <thead><tr><th>Tipo</th><th style="text-align:right">$ Venta</th><th style="text-align:right"># Opp</th></tr></thead>
+      <tbody>${tableRows(tipoCuenta, 'Tipo')}</tbody>
+    </table>
   </div>
 </div>
 
 <script>
 // ── Raw data (all 12 months) ──
 const MESES = ${JSON.stringify(MONTHS)};
-const DATA_CURRENT = ${JSON.stringify(monthDataCurrent)};
-const DATA_LAST = ${JSON.stringify(monthDataLast)};
+const VENTA = ${JSON.stringify(monthVenta)};
+const VENTA_LY = ${JSON.stringify(monthVentaLY)};
+const FACT = ${JSON.stringify(monthFact)};
+const FACT_LY = ${JSON.stringify(monthFactLY)};
+const ESFUERZO = ${JSON.stringify(monthEsfuerzo)};
+const ESFUERZO_LY = ${JSON.stringify(monthEsfuerzoLY)};
 const YEAR = ${year};
 const LAST_YEAR = ${lastYear};
-const CUENTAS_LABELS = ${JSON.stringify(cuentasData.map((c: any) => c.tipo))};
-const CUENTAS_DATA = ${JSON.stringify(cuentasData.map((c: any) => c.cnt))};
+
+const VENTA_SUSCRIPCION = ${ventaSuscripcion};
+const VENTA_SOLUCIONES = ${ventaSoluciones};
+const VENTA_SUSCRIPCION_LY = ${ventaSuscripcionLY};
+const VENTA_SOLUCIONES_LY = ${ventaSolucionesLY};
+const ESTATUS_ACTUAL = ${JSON.stringify(estatusActual)};
+const ESTATUS_LY = ${JSON.stringify(estatusLY)};
+
+const PRODUCTOS = ${JSON.stringify(productos)};
+const LEADSOURCES = ${JSON.stringify(leadSources)};
+const RANGOS = ${JSON.stringify(rangos)};
+const REGIONES = ${JSON.stringify(regiones)};
+
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
 
-function fmt(n){if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
-function fmtFull(n){return'$'+n.toLocaleString('es-MX',{maximumFractionDigits:0})}
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmtFull(n){return'$'+(n||0).toLocaleString('es-MX',{maximumFractionDigits:0})}
 
-let accumChart, monthChart, cuentasChart;
+let monthChart, esfuerzoChart, estatusChart, accumChart, rangoChart, productoChart, canalChart, regionChart;
 
 function initCharts(){
-  accumChart = new Chart(document.getElementById('accumChart'),{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>'$'+(c.parsed.y/1e6).toFixed(2)+'M MXN'}}},scales:{y:{ticks:{callback:v=>'$'+(v/1e6).toFixed(0)+'M',font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}});
-  monthChart = new Chart(document.getElementById('monthChart'),{type:'bar',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}}},scales:{y:{ticks:{callback:v=>'$'+(v/1e6).toFixed(1)+'M',font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}});
-  cuentasChart = new Chart(document.getElementById('cuentasChart'),{type:'doughnut',data:{labels:CUENTAS_LABELS,datasets:[{data:CUENTAS_DATA,backgroundColor:['${COLORS.green}','${COLORS.red}','${COLORS.blue}','${COLORS.yellow}','${COLORS.gray}']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:fontDef,boxWidth:10}}}}});
+  monthChart = new Chart(document.getElementById('monthChart'),{type:'bar',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}});
+  esfuerzoChart = new Chart(document.getElementById('esfuerzoChart'),{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}}},scales:{y:{beginAtZero:true,ticks:{font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}});
+  estatusChart = new Chart(document.getElementById('estatusChart'),{type:'doughnut',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}});
+  accumChart = new Chart(document.getElementById('accumChart'),{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}});
+
+  // Static charts
+  rangoChart = new Chart(document.getElementById('rangoChart'),{type:'bar',data:{labels:RANGOS.map(r=>r.name),datasets:[{label:'$ Venta',data:RANGOS.map(r=>r.total),backgroundColor:'${COLORS.red}',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}});
+  productoChart = new Chart(document.getElementById('productoChart'),{type:'bar',data:{labels:PRODUCTOS.map(p=>p.name),datasets:[{label:'$ Venta',data:PRODUCTOS.map(p=>p.total),backgroundColor:'${COLORS.blue}',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}});
+  canalChart = new Chart(document.getElementById('canalChart'),{type:'bar',data:{labels:LEADSOURCES.map(l=>l.name),datasets:[{label:'$ Venta',data:LEADSOURCES.map(l=>l.total),backgroundColor:'${COLORS.green}',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}});
+  regionChart = new Chart(document.getElementById('regionChart'),{type:'bar',data:{labels:REGIONES.map(r=>r.name),datasets:[{label:'$ Venta',data:REGIONES.map(r=>r.total),backgroundColor:'${COLORS.yellow}',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}});
+
   applyFilters();
 }
 
@@ -256,46 +405,105 @@ function applyFilters(){
   const start = Math.min(desde,hasta);
   const end = Math.max(desde,hasta);
 
-  // Filter months
   const labels = MESES.slice(start, end+1);
-  const dataCur = DATA_CURRENT.slice(start, end+1);
-  const dataLast = DATA_LAST.slice(start, end+1);
+  const venta = VENTA.slice(start, end+1);
+  const ventaLY = VENTA_LY.slice(start, end+1);
+  const fact = FACT.slice(start, end+1);
+  const factLY = FACT_LY.slice(start, end+1);
+  const esf = ESFUERZO.slice(start, end+1);
+  const esfLY = ESFUERZO_LY.slice(start, end+1);
 
-  // Accumulate
-  let accCur=0, accLast=0;
-  const accumCur=dataCur.map(v=>(accCur+=v,accCur));
-  const accumLast=dataLast.map(v=>(accLast+=v,accLast));
+  // Acumular
+  let accCur=0, accLY=0;
+  const accumCur = venta.map(v=>(accCur+=v,accCur));
+  const accumLY = ventaLY.map(v=>(accLY+=v,accLY));
 
-  // KPIs
-  const totalCur = dataCur.reduce((s,v)=>s+v,0);
-  const totalLast = dataLast.reduce((s,v)=>s+v,0);
-  const countMonths = end-start+1;
-  const ticketAvg = totalCur/(countMonths||1);
-  const pctChg = totalLast>0?((totalCur-totalLast)/totalLast*100):0;
+  // Totales
+  const totalVenta = venta.reduce((s,v)=>s+v,0);
+  const totalVentaLY = ventaLY.reduce((s,v)=>s+v,0);
+  const totalFact = fact.reduce((s,v)=>s+v,0);
+  const totalFactLY = factLY.reduce((s,v)=>s+v,0);
+  const totalEsf = esf.reduce((s,v)=>s+v,0);
+  const totalEsfLY = esfLY.reduce((s,v)=>s+v,0);
+
+  const monthCount = end-start+1;
+  const fullPeriod = (start===0 && end===11);
+
+  // % Var
+  const pctChg = totalVentaLY>0 ? ((totalVenta-totalVentaLY)/totalVentaLY*100) : 0;
   const chgColor = pctChg>=0?'${COLORS.green}':'${COLORS.red}';
   const chgArrow = pctChg>=0?'&#9650;':'&#9660;';
+  const pctChgFact = totalFactLY>0 ? ((totalFact-totalFactLY)/totalFactLY*100) : 0;
+  const factColor = pctChgFact>=0?'${COLORS.green}':'${COLORS.red}';
 
+  // Suscripcion / Soluciones (proporcionales si filtramos un período)
+  const suscripcion = fullPeriod ? VENTA_SUSCRIPCION : VENTA_SUSCRIPCION * (totalVenta/(${totalYTD}||1));
+  const soluciones = fullPeriod ? VENTA_SOLUCIONES : VENTA_SOLUCIONES * (totalVenta/(${totalYTD}||1));
+
+  // Render KPIs (replica visual de las 7 cards Power BI)
   document.getElementById('kpiRow').innerHTML = \`
-    <div class="kpi"><div class="label">Venta \${MESES[start]} - \${MESES[end]} \${YEAR}</div><div class="value">\${fmtFull(totalCur)}</div>\${showLY?\`<div class="sub" style="color:\${chgColor}">\${chgArrow} \${pctChg>=0?'+':''}\${pctChg.toFixed(1)}% vs \${LAST_YEAR}</div>\`:''}</div>
-    \${showLY?\`<div class="kpi"><div class="label">Mismo periodo \${LAST_YEAR}</div><div class="value">\${fmtFull(totalLast)}</div></div>\`:''}
-    <div class="kpi"><div class="label">Promedio Mensual</div><div class="value">\${fmtFull(ticketAvg)}</div><div class="sub">\${countMonths} meses</div></div>
-    <div class="kpi"><div class="label">Cuentas Activas</div><div class="value">${cuentasActivas.toLocaleString()}</div><div class="sub"><span class="tag tag-green">Activas</span></div></div>
-    <div class="kpi"><div class="label">Cuentas Perdidas</div><div class="value">${cuentasPerdidas.toLocaleString()}</div><div class="sub"><span class="tag tag-red">Churn</span></div></div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+      <div class="label">$ Venta</div>
+      <div class="value">\${fmtFull(totalVenta)}</div>
+      \${showLY?\`<div class="sub" style="color:\${chgColor}">\${chgArrow} \${pctChg>=0?'+':''}\${pctChg.toFixed(1)}% vs \${LAST_YEAR}</div>\`:''}
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.blue}">
+      <div class="label">$ Facturación x Emisión</div>
+      <div class="value">\${fmtFull(totalFact)}</div>
+      \${showLY?\`<div class="sub" style="color:\${factColor}">\${pctChgFact>=0?'+':''}\${pctChgFact.toFixed(1)}% vs LY</div>\`:''}
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+      <div class="label">$ Venta Suscripción <span style="color:#9CA3AF;font-size:9px">(LDN1+LDN4)</span></div>
+      <div class="value">\${fmt(suscripcion)}</div>
+      <div class="sub" style="color:#6B7280">\${totalVenta>0?((suscripcion/totalVenta)*100).toFixed(0):0}% del total</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+      <div class="label">$ Venta Soluciones <span style="color:#9CA3AF;font-size:9px">(LDN2+LDN3)</span></div>
+      <div class="value">\${fmt(soluciones)}</div>
+      <div class="sub" style="color:#6B7280">\${totalVenta>0?((soluciones/totalVenta)*100).toFixed(0):0}% del total</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
+      <div class="label">Esfuerzo Comercial</div>
+      <div class="value">\${totalEsf.toLocaleString('es-MX')}</div>
+      \${showLY?\`<div class="sub" style="color:#6B7280">vs \${totalEsfLY.toLocaleString('es-MX')} \${LAST_YEAR}</div>\`:'<div class="sub">opps creadas</div>'}
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.gray}">
+      <div class="label">Cuentas Activas</div>
+      <div class="value">${cuentasActivas.toLocaleString('es-MX')}</div>
+      <div class="sub"><span class="tag tag-green">Renewal</span> ${cuentasPerdidas.toLocaleString('es-MX')} <span style="color:#6B7280">churn</span></div>
+    </div>
+    <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+      <div class="label">Promedio Mensual</div>
+      <div class="value">\${fmt(totalVenta/(monthCount||1))}</div>
+      <div class="sub" style="color:#6B7280">\${monthCount} \${monthCount===1?'mes':'meses'}</div>
+    </div>
   \`;
 
-  // Update accum chart
-  document.getElementById('accumTitle').textContent = 'Venta Acumulada '+MESES[start]+' - '+MESES[end]+' '+YEAR;
+  // Chart 1: Venta mensual
+  document.getElementById('monthTitle').textContent = 'Venta por Mes ' + MESES[start] + '-' + MESES[end] + ' ' + YEAR;
+  monthChart.data.labels = labels;
+  monthChart.data.datasets = [{label:YEAR+'',data:venta,backgroundColor:'rgba(255,22,40,0.85)',borderRadius:4}];
+  if(showLY) monthChart.data.datasets.push({label:LAST_YEAR+'',data:ventaLY,backgroundColor:'rgba(59,130,246,0.55)',borderRadius:4});
+  monthChart.update();
+
+  // Chart 2: Esfuerzo Comercial (line)
+  document.getElementById('esfuerzoTitle').textContent = 'Esfuerzo Comercial (Opps Creadas)';
+  esfuerzoChart.data.labels = labels;
+  esfuerzoChart.data.datasets = [{label:YEAR+'',data:esf,borderColor:'${COLORS.dark}',backgroundColor:'rgba(17,19,28,0.1)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3}];
+  if(showLY) esfuerzoChart.data.datasets.push({label:LAST_YEAR+'',data:esfLY,borderColor:'${COLORS.gray}',borderDash:[5,5],fill:false,tension:0.4,borderWidth:2,pointRadius:2});
+  esfuerzoChart.update();
+
+  // Chart 3: Estatus_anual (donut)
+  estatusChart.data.labels = ESTATUS_ACTUAL.map(e=>e.tipo);
+  estatusChart.data.datasets = [{data:ESTATUS_ACTUAL.map(e=>e.total),backgroundColor:['${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.red}','${COLORS.gray}']}];
+  estatusChart.update();
+
+  // Chart 4: Acumulado
+  document.getElementById('accumTitle').textContent = 'Venta Acumulada ' + MESES[start] + ' - ' + MESES[end] + ' ' + YEAR;
   accumChart.data.labels = labels;
   accumChart.data.datasets = [{label:YEAR+'',data:accumCur,borderColor:'${COLORS.red}',backgroundColor:'rgba(255,22,40,0.08)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3}];
-  if(showLY) accumChart.data.datasets.push({label:LAST_YEAR+'',data:accumLast,borderColor:'${COLORS.blue}',backgroundColor:'rgba(59,130,246,0.05)',fill:true,tension:0.4,borderWidth:2,borderDash:[5,5],pointRadius:2});
+  if(showLY) accumChart.data.datasets.push({label:LAST_YEAR+'',data:accumLY,borderColor:'${COLORS.blue}',backgroundColor:'rgba(59,130,246,0.05)',fill:true,tension:0.4,borderWidth:2,borderDash:[5,5],pointRadius:2});
   accumChart.update();
-
-  // Update month chart
-  document.getElementById('monthTitle').textContent = 'Venta Mensual '+YEAR;
-  monthChart.data.labels = labels;
-  monthChart.data.datasets = [{label:YEAR+'',data:dataCur,backgroundColor:'rgba(255,22,40,0.7)',borderRadius:4}];
-  if(showLY) monthChart.data.datasets.push({label:LAST_YEAR+'',data:dataLast,backgroundColor:'rgba(59,130,246,0.4)',borderRadius:4});
-  monthChart.update();
 }
 
 initCharts();
@@ -307,7 +515,7 @@ initCharts();
     icon: '&#128200;',
     html: dashboardShell(`Dashboard Ejecutivo - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `Venta YTD: ${fmt(totalYTD)} (${yoyChange.text} vs ${lastYear}) | Ticket: ${fmt(ticket)} | Cuentas activas: ${cuentasActivas}`,
+    summary: `Venta YTD: ${fmt(totalYTD)} (${yoyChange.text} vs ${lastYear}) | Suscripción: ${fmt(ventaSuscripcion)} | Soluciones: ${fmt(ventaSoluciones)} | Cuentas activas: ${cuentasActivas}`,
   };
 }
 
