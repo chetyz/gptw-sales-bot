@@ -49,7 +49,7 @@ fi
 tmux new-session -d -s bot bash
 sleep 1
 tmux send-keys -t bot 'claude --model sonnet --dangerously-skip-permissions --dangerously-load-development-channels server:gptw-sales-bot' Enter
-sleep 12
+sleep 20
 # Enter para confirmar el banner de "Loading development channels"
 # (sólo aparece si onboarding ya estaba completo; si no, los Enters
 # extra van al chat principal y no rompen nada).
