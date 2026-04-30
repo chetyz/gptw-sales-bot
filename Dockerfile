@@ -9,4 +9,6 @@ COPY package.json bun.lock* ./
 RUN bun install --production
 COPY . .
 EXPOSE 8787
-CMD ["bash", "-lc", "tmux new-session -d -s bot; sleep 2; tmux send-keys -t bot 'claude --model sonnet --dangerously-skip-permissions --dangerously-load-development-channels server:gptw-sales-bot' Enter; tail -f /dev/null"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+CMD ["/entrypoint.sh"]
