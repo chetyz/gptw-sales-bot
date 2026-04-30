@@ -2317,9 +2317,10 @@ function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n
 
 // 1. Tipo de Cuenta (donut)
 const tipoData = ${JSON.stringify(tipoData)};
+const tipoColors = ${JSON.stringify(tipoColors)};
 new Chart(document.getElementById('tipoChart'),{
   type:'doughnut',
-  data:{labels:tipoData.map(t=>t.name),datasets:[{data:tipoData.map(t=>t.cnt),backgroundColor:tipoData.map(t=>${JSON.stringify(tipoColors)}[t.name]||'${COLORS.gray}')}]},
+  data:{labels:tipoData.map(t=>t.name),datasets:[{data:tipoData.map(t=>t.cnt),backgroundColor:tipoData.map(t=>tipoColors[t.name]||'${COLORS.gray}')}]},
   options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+c.parsed.toLocaleString('es-MX')+' cuentas'}}}}
 });
 
