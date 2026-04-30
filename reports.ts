@@ -2092,23 +2092,91 @@ new Chart(document.getElementById('cfdiChart'),{
   };
 }
 
-// ─── Report 7: Cuentas ───────────────────────────────────────────────────────
+// ─── Report 7: Distribución de Cuentas (réplica del PBI) ────────────────────
 
 async function generateCuentas(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
+  const year = now.getFullYear();
+  const lastYear = year - 1;
 
-  const [porRegion, porSector, porTipo, cuentasNuevasMes] = await Promise.all([
-    query(`SELECT Regi_n_Cliente_UEN__c region, COUNT(Id) cnt FROM Account WHERE Regi_n_Cliente_UEN__c != null GROUP BY Regi_n_Cliente_UEN__c ORDER BY COUNT(Id) DESC`),
-    query(`SELECT Industry sector, COUNT(Id) cnt FROM Account WHERE Industry != null GROUP BY Industry ORDER BY COUNT(Id) DESC LIMIT 12`),
-    query(`SELECT Tipo_de_Cuenta__c tipo, COUNT(Id) cnt FROM Account WHERE Tipo_de_Cuenta__c != null GROUP BY Tipo_de_Cuenta__c ORDER BY COUNT(Id) DESC`),
-    query(`SELECT COUNT(Id) cnt FROM Account WHERE CreatedDate = THIS_MONTH`),
+  const [
+    porTipoCuenta,         // Account.Tipo_de_cuenta__c (Activo/Perdido/Nuevo/etc) — total
+    porRegion,             // Cuentas con ventas por Región
+    porSector,             // Cuentas con ventas por Sector
+    porEstado,             // Cuentas con ventas por Estado mexicano
+    porRango,              // Cuentas con ventas por Rango de Colaboradores
+    porProducto,           // Cuentas con ventas por Producto Oportunidad (line items)
+    porEstatusAnual,       // Cuentas con ventas por Estatus Anual (Nuevo/Renovación/Adicional)
+    topVendedores,         // Top vendedores con # cuentas + $ Venta + Ticket
+    topRecurrentes,        // Top cuentas recurrentes (con más años de compra)
+    topNuevas,             // Top cuentas nuevas (Estatus_anual='Nuevo')
+    cuentasGanadasYTD,     // # cuentas distintas con ventas YTD
+    cuentasNuevasYTD,      // Distintas cuentas nuevas YTD
+    cuentasNuevasMes,      // Cuentas creadas este mes
+  ] = await Promise.all([
+    query(`SELECT Tipo_de_cuenta__c t, COUNT(Id) cnt FROM Account WHERE Tipo_de_cuenta__c != null GROUP BY Tipo_de_cuenta__c ORDER BY COUNT(Id) DESC`),
+    query(`SELECT Account.Regi_n_Cliente_UEN__c r, COUNT_DISTINCT(AccountId) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Regi_n_Cliente_UEN__c != null GROUP BY Account.Regi_n_Cliente_UEN__c ORDER BY COUNT_DISTINCT(AccountId) DESC`),
+    query(`SELECT Account.Sector_MX__c s, COUNT_DISTINCT(AccountId) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Sector_MX__c != null GROUP BY Account.Sector_MX__c ORDER BY COUNT_DISTINCT(AccountId) DESC LIMIT 12`),
+    query(`SELECT Account.Estado__c e, COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Estado__c != null GROUP BY Account.Estado__c ORDER BY COUNT_DISTINCT(AccountId) DESC LIMIT 15`),
+    query(`SELECT Account.Rango_de_Colaboradores__c r, COUNT_DISTINCT(AccountId) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Rango_de_Colaboradores__c != null GROUP BY Account.Rango_de_Colaboradores__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Product2.Name p, COUNT_DISTINCT(Opportunity.AccountId) cnt, SUM(TotalPrice) total FROM OpportunityLineItem WHERE Opportunity.StageName='Ganada!' AND Opportunity.CloseDate=THIS_YEAR AND Opportunity.CurrencyIsoCode='MXN' GROUP BY Product2.Name ORDER BY COUNT_DISTINCT(Opportunity.AccountId) DESC LIMIT 12`),
+    query(`SELECT Estatus_anual__c e, COUNT_DISTINCT(AccountId) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
+    query(`SELECT OwnerId, COUNT_DISTINCT(AccountId) cnt_acct, COUNT(Id) cnt_opp, SUM(Amount) total, AVG(Amount) avg FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Amount != null GROUP BY OwnerId ORDER BY SUM(Amount) DESC NULLS LAST LIMIT 15`),
+    query(`SELECT AccountId, Account.Name a, COUNT(Id) opps, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Renovación' AND Amount > 0 GROUP BY AccountId, Account.Name HAVING COUNT(Id) >= 3 ORDER BY COUNT(Id) DESC NULLS LAST LIMIT 15`),
+    query(`SELECT AccountId, Account.Name a, SUM(Amount) total, COUNT(Id) opps FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Nuevo' AND Amount > 0 GROUP BY AccountId, Account.Name ORDER BY SUM(Amount) DESC NULLS LAST LIMIT 15`),
+    query(`SELECT COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN'`),
+    query(`SELECT COUNT_DISTINCT(AccountId) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Nuevo'`),
+    query(`SELECT COUNT(Id) cnt FROM Account WHERE CreatedDate=THIS_MONTH`),
   ]);
 
-  const regionData = (porRegion.records || []).map((r: any) => ({ region: r.region, cnt: r.cnt }));
-  const sectorData = (porSector.records || []).map((r: any) => ({ sector: r.sector, cnt: r.cnt }));
-  const tipoData = (porTipo.records || []).map((r: any) => ({ tipo: r.tipo, cnt: r.cnt }));
+  // ── Procesamiento ──
+  const tipoData = (porTipoCuenta.records || []).map((r: any) => ({ name: r.t, cnt: r.cnt }));
   const totalCuentas = tipoData.reduce((s: number, t: any) => s + t.cnt, 0);
+  const cuentasActivas = tipoData.find((t: any) => t.name?.includes('Activo'))?.cnt || 0;
+  const cuentasPerdidas = tipoData.find((t: any) => t.name?.includes('Perdido'))?.cnt || 0;
+  const cuentasNuevasTipo = tipoData.find((t: any) => t.name?.includes('Nuevo'))?.cnt || 0;
+  const cuentasSinActividad = tipoData.find((t: any) => t.name?.includes('Sin actividad'))?.cnt || 0;
+
+  const cuentasConVentas = cuentasGanadasYTD.records?.[0]?.cnt || 0;
+  const cuentasNuevasYTDcnt = cuentasNuevasYTD.records?.[0]?.cnt || 0;
+  const ventaCuentasNuevasYTD = cuentasNuevasYTD.records?.[0]?.total || 0;
   const nuevasMes = cuentasNuevasMes.records?.[0]?.cnt || 0;
+
+  const regionData = (porRegion.records || []).map((r: any) => ({ name: r.r, cnt: r.cnt, total: r.total || 0 }));
+  const sectorData = (porSector.records || []).map((r: any) => ({ name: (r.s || '').replace(/^\d+\.0\s*/, ''), cnt: r.cnt, total: r.total || 0 }));
+  const estadoData = (porEstado.records || []).map((r: any) => ({ name: r.e, cnt: r.cnt }));
+  const rangoData = (porRango.records || []).map((r: any) => ({ name: r.r, cnt: r.cnt, total: r.total || 0 }));
+  const productoData = (porProducto.records || []).map((r: any) => ({ name: r.p, cnt: r.cnt, total: r.total || 0 }));
+  const estatusData = (porEstatusAnual.records || []).map((r: any) => ({ name: r.e, cnt: r.cnt, total: r.total || 0 }));
+
+  // ── User name lookup ──
+  const userNames = new Map<string, string>();
+  try {
+    const allUsers = await query(`SELECT Id, Name FROM User WHERE IsActive = true LIMIT 200`);
+    (allUsers.records || []).forEach((u: any) => userNames.set(u.Id, u.Name));
+  } catch (e: any) {
+    process.stderr.write(`[reports] User query failed: ${e.message}\n`);
+  }
+
+  const topVend = (topVendedores.records || []).map((r: any) => ({
+    name: userNames.get(r.OwnerId) || 'Sin nombre',
+    cuentas: r.cnt_acct || 0,
+    opps: r.cnt_opp || 0,
+    total: r.total || 0,
+    ticket: r.avg || 0,
+  }));
+
+  const topRec = (topRecurrentes.records || []).map((r: any) => ({
+    name: r.a || '—',
+    opps: r.opps || 0,
+    total: r.total || 0,
+  }));
+
+  const topNew = (topNuevas.records || []).map((r: any) => ({
+    name: r.a || '—',
+    opps: r.opps || 0,
+    total: r.total || 0,
+  }));
 
   const tipoColors: Record<string, string> = {
     'Activo (Renewal)': COLORS.green, 'Perdido (Churn)': COLORS.red, 'Nuevo (New Logo)': COLORS.blue,
@@ -2118,70 +2186,199 @@ async function generateCuentas(query: QueryFn): Promise<ReportCache> {
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const body = `
+<!-- KPIs -->
 <div class="kpi-row">
-  <div class="kpi">
+  <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
     <div class="label">Total Cuentas</div>
-    <div class="value">${totalCuentas.toLocaleString()}</div>
+    <div class="value">${totalCuentas.toLocaleString('es-MX')}</div>
+    <div class="sub">${nuevasMes} creadas este mes</div>
   </div>
-  <div class="kpi">
-    <div class="label">Nuevas este Mes</div>
-    <div class="value" style="color:${COLORS.green}">${nuevasMes}</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label">Cuentas Activas (Renewal)</div>
+    <div class="value" style="color:${COLORS.green}">${cuentasActivas.toLocaleString('es-MX')}</div>
+    <div class="sub">${pct(cuentasActivas, totalCuentas)} del total</div>
   </div>
-  ${tipoData.slice(0, 4).map((t: any) => `
-  <div class="kpi">
-    <div class="label">${t.tipo}</div>
-    <div class="value" style="color:${tipoColors[t.tipo] || COLORS.dark}">${t.cnt.toLocaleString()}</div>
-    <div class="sub">${pct(t.cnt, totalCuentas)}</div>
-  </div>`).join('')}
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">Cuentas Perdidas (Churn)</div>
+    <div class="value" style="color:${COLORS.red}">${cuentasPerdidas.toLocaleString('es-MX')}</div>
+    <div class="sub">${pct(cuentasPerdidas, totalCuentas)} del total</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.blue}">
+    <div class="label">Cuentas con Venta YTD</div>
+    <div class="value">${cuentasConVentas.toLocaleString('es-MX')}</div>
+    <div class="sub">en ${year}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+    <div class="label"># Cuentas Nuevas YTD</div>
+    <div class="value">${cuentasNuevasYTDcnt.toLocaleString('es-MX')}</div>
+    <div class="sub">${fmt(ventaCuentasNuevasYTD)} en ventas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.gray}">
+    <div class="label">Sin Actividad Comercial</div>
+    <div class="value">${cuentasSinActividad.toLocaleString('es-MX')}</div>
+    <div class="sub">${pct(cuentasSinActividad, totalCuentas)} dormidas</div>
+  </div>
 </div>
 
-<div class="chart-row">
-  <div class="chart-card">
-    <h3>Distribucion por Region</h3>
-    <div class="chart-wrap"><canvas id="regionChart"></canvas></div>
-  </div>
+<!-- ROW 1: Tipo de Cuenta + Estatus Anual + Rango Colaboradores -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr 1fr">
   <div class="chart-card">
     <h3>Tipo de Cuenta</h3>
-    <div class="chart-wrap"><canvas id="tipoChart"></canvas></div>
+    <div class="chart-wrap" style="height:280px"><canvas id="tipoChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Cuentas con Venta por Estatus Anual</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="estatusChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Cuentas por Categoría Empresa</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="rangoChart"></canvas></div>
   </div>
 </div>
 
-<div class="chart-row">
-  <div class="chart-card" style="grid-column:1/-1">
-    <h3>Top Sectores / Industrias</h3>
-    <div class="chart-wrap" style="height:300px"><canvas id="sectorChart"></canvas></div>
+<!-- ROW 2: Región + Estado mexicano -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3># Cuentas con Venta por Región</h3>
+    <div class="chart-wrap" style="height:340px"><canvas id="regionChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3># Cuentas con Venta por Estado</h3>
+    <div class="chart-wrap" style="height:340px"><canvas id="estadoChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Sector + Producto -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3># Cuentas con Venta por Sector / Industria</h3>
+    <div class="chart-wrap" style="height:360px"><canvas id="sectorChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3># Cuentas con Venta por Producto</h3>
+    <div class="chart-wrap" style="height:360px"><canvas id="productoChart"></canvas></div>
+  </div>
+</div>
+
+<!-- TABLA: Top vendedores -->
+<div class="table-card" style="margin-bottom:24px">
+  <h3>Top 15 Vendedores: Cuentas atendidas YTD</h3>
+  <table>
+    <thead><tr><th>Vendedor</th><th style="text-align:right"># Cuentas</th><th style="text-align:right"># Opps</th><th style="text-align:right">$ Venta</th><th style="text-align:right">$ Ticket Promedio</th></tr></thead>
+    <tbody>
+      ${topVend.map(v => `
+      <tr>
+        <td>${v.name.replace(/</g, '&lt;')}</td>
+        <td style="text-align:right">${v.cuentas}</td>
+        <td style="text-align:right;color:#6B7280">${v.opps}</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(v.total)}</td>
+        <td style="text-align:right">${fmt(v.ticket)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+</div>
+
+<!-- ROW Tablas: Cuentas recurrentes + Cuentas nuevas -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="table-card">
+    <h3>Top 15 Cuentas Recurrentes (3+ renovaciones)</h3>
+    <table>
+      <thead><tr><th>Cuenta</th><th style="text-align:right"># Renovaciones</th><th style="text-align:right">$ Total</th></tr></thead>
+      <tbody>
+        ${topRec.map(c => `
+        <tr>
+          <td>${c.name.replace(/</g, '&lt;')}</td>
+          <td style="text-align:right"><span class="tag tag-green">${c.opps}</span></td>
+          <td style="text-align:right;font-weight:500">${fmtFull(c.total)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <h3>Top 15 Cuentas Nuevas YTD (New Logos)</h3>
+    <table>
+      <thead><tr><th>Cuenta</th><th style="text-align:right"># Opps</th><th style="text-align:right">$ Venta</th></tr></thead>
+      <tbody>
+        ${topNew.map(c => `
+        <tr>
+          <td>${c.name.replace(/</g, '&lt;')}</td>
+          <td style="text-align:right;color:#6B7280">${c.opps}</td>
+          <td style="text-align:right;font-weight:500">${fmtFull(c.total)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
   </div>
 </div>
 
 <script>
-const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
 
-new Chart(document.getElementById('regionChart'),{
-  type:'bar',
-  data:{labels:${JSON.stringify(regionData.map((r: any) => r.region.replace('Region ', '')))},datasets:[{data:${JSON.stringify(regionData.map((r: any) => r.cnt))},backgroundColor:'rgba(255,22,40,0.7)',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:fontDef}},y:{ticks:{font:{...fontDef,size:10}}}}}
-});
-
+// 1. Tipo de Cuenta (donut)
+const tipoData = ${JSON.stringify(tipoData)};
 new Chart(document.getElementById('tipoChart'),{
   type:'doughnut',
-  data:{labels:${JSON.stringify(tipoData.map((t: any) => t.tipo))},datasets:[{data:${JSON.stringify(tipoData.map((t: any) => t.cnt))},backgroundColor:${JSON.stringify(tipoData.map((t: any) => tipoColors[t.tipo] || COLORS.gray))}}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:fontDef,boxWidth:10}}}}
+  data:{labels:tipoData.map(t=>t.name),datasets:[{data:tipoData.map(t=>t.cnt),backgroundColor:tipoData.map(t=>${JSON.stringify(tipoColors)}[t.name]||'${COLORS.gray}')}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+c.parsed.toLocaleString('es-MX')+' cuentas'}}}}
 });
 
+// 2. Estatus anual (donut)
+const estatusData = ${JSON.stringify(estatusData)};
+new Chart(document.getElementById('estatusChart'),{
+  type:'doughnut',
+  data:{labels:estatusData.map(d=>d.name),datasets:[{data:estatusData.map(d=>d.cnt),backgroundColor:['${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.red}']}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+' cuentas | '+fmt(estatusData[c.dataIndex].total)}}}}
+});
+
+// 3. Rango Colaboradores
+const rangoData = ${JSON.stringify(rangoData)};
+new Chart(document.getElementById('rangoChart'),{
+  type:'bar',
+  data:{labels:rangoData.map(d=>d.name),datasets:[{data:rangoData.map(d=>d.cnt),backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' cuentas | '+fmt(rangoData[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 4. Región
+const regionData = ${JSON.stringify(regionData)};
+new Chart(document.getElementById('regionChart'),{
+  type:'bar',
+  data:{labels:regionData.map(d=>(d.name||'').replace('Región ','')),datasets:[{data:regionData.map(d=>d.cnt),backgroundColor:'${COLORS.blue}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' cuentas | '+fmt(regionData[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 5. Estado
+const estadoData = ${JSON.stringify(estadoData)};
+new Chart(document.getElementById('estadoChart'),{
+  type:'bar',
+  data:{labels:estadoData.map(d=>d.name),datasets:[{data:estadoData.map(d=>d.cnt),backgroundColor:'${COLORS.green}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 6. Sector
+const sectorData = ${JSON.stringify(sectorData)};
 new Chart(document.getElementById('sectorChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(sectorData.map((s: any) => s.sector.length > 25 ? s.sector.substring(0, 25) + '...' : s.sector))},datasets:[{data:${JSON.stringify(sectorData.map((s: any) => s.cnt))},backgroundColor:'rgba(59,130,246,0.7)',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:fontDef}},y:{ticks:{font:{...fontDef,size:10}}}}}
+  data:{labels:sectorData.map(d=>(d.name||'').substring(0,30)),datasets:[{data:sectorData.map(d=>d.cnt),backgroundColor:'${COLORS.yellow}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' cuentas | '+fmt(sectorData[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 7. Producto
+const productoData = ${JSON.stringify(productoData)};
+new Chart(document.getElementById('productoChart'),{
+  type:'bar',
+  data:{labels:productoData.map(d=>d.name),datasets:[{data:productoData.map(d=>d.cnt),backgroundColor:'${COLORS.dark}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' cuentas | '+fmt(productoData[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
 });
 </script>`;
 
   return {
     id: 'cuentas',
-    title: 'Distribucion de Cuentas',
+    title: 'Distribución de Cuentas',
     icon: '&#127970;',
-    html: dashboardShell('Distribucion de Cuentas', date, body),
+    html: dashboardShell(`Distribución de Cuentas - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `${totalCuentas} cuentas | ${nuevasMes} nuevas este mes`,
+    summary: `${totalCuentas.toLocaleString('es-MX')} cuentas | ${cuentasActivas} activas · ${cuentasPerdidas} churn | ${cuentasConVentas} con venta YTD | ${cuentasNuevasYTDcnt} new logos (${fmt(ventaCuentasNuevasYTD)})`,
   };
 }
 
