@@ -31,9 +31,7 @@ const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov
 
 function fmt(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return '$0';
-  if (Math.abs(n) >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
-  if (Math.abs(n) >= 1_000) return '$' + (n / 1_000).toFixed(0) + 'K';
-  return '$' + n.toFixed(0);
+  return '$' + Math.round(n).toLocaleString('es-MX');
 }
 
 function fmtFull(n: number | null | undefined): string {
@@ -148,8 +146,8 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
     query(`SELECT Estatus_anual__c tipo, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = LAST_YEAR AND CurrencyIsoCode = 'MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
     query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Fecha_de_Emisi_n__c = THIS_YEAR AND Estatus_de__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c)`),
     query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Fecha_de_Emisi_n__c = LAST_YEAR AND Estatus_de__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c)`),
-    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
-    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Account WHERE Es_esfuerzo_comercial__c = true AND CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Account WHERE Es_esfuerzo_comercial__c = true AND CreatedDate = LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT Product2.Name prod, SUM(TotalPrice) total, COUNT(Id) cnt FROM OpportunityLineItem WHERE Opportunity.StageName = 'Ganada!' AND Opportunity.CloseDate = THIS_YEAR AND Opportunity.CurrencyIsoCode = 'MXN' GROUP BY Product2.Name ORDER BY SUM(TotalPrice) DESC LIMIT 10`),
     query(`SELECT LeadSource src, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND LeadSource != null GROUP BY LeadSource ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Account.Tipo_de_Cuenta__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Account.Tipo_de_Cuenta__c`),
@@ -267,7 +265,7 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
     <div class="chart-wrap" style="height:280px"><canvas id="monthChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <h3 id="esfuerzoTitle">Esfuerzo Comercial (Opps Creadas)</h3>
+    <h3 id="esfuerzoTitle">Esfuerzo Comercial (Cuentas marcadas)</h3>
     <div class="chart-wrap" style="height:280px"><canvas id="esfuerzoChart"></canvas></div>
   </div>
   <div class="chart-card">
@@ -367,7 +365,7 @@ const REGIONES = ${JSON.stringify(regiones)};
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
 
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 function fmtFull(n){return'$'+(n||0).toLocaleString('es-MX',{maximumFractionDigits:0})}
 
 let monthChart, esfuerzoChart, estatusChart, accumChart, rangoChart, productoChart, canalChart, regionChart;
@@ -487,7 +485,7 @@ function applyFilters(){
   monthChart.update();
 
   // Chart 2: Esfuerzo Comercial (line)
-  document.getElementById('esfuerzoTitle').textContent = 'Esfuerzo Comercial (Opps Creadas)';
+  document.getElementById('esfuerzoTitle').textContent = 'Esfuerzo Comercial (Cuentas marcadas)';
   esfuerzoChart.data.labels = labels;
   esfuerzoChart.data.datasets = [{label:YEAR+'',data:esf,borderColor:'${COLORS.dark}',backgroundColor:'rgba(17,19,28,0.1)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3}];
   if(showLY) esfuerzoChart.data.datasets.push({label:LAST_YEAR+'',data:esfLY,borderColor:'${COLORS.gray}',borderDash:[5,5],fill:false,tension:0.4,borderWidth:2,pointRadius:2});
@@ -883,7 +881,7 @@ async function generateVentas(query: QueryFn): Promise<ReportCache> {
 const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 
 // 1. Ventas mensuales por tipo (stacked bar)
 new Chart(document.getElementById('ventasTipoChart'),{
@@ -1236,7 +1234,7 @@ async function generatePipeline(query: QueryFn): Promise<ReportCache> {
 <script>
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 
 // 1. Pipeline por Etapa (funnel-bar horizontal)
 new Chart(document.getElementById('etapaChart'),{
@@ -1661,6 +1659,7 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
 
 <script>
 // Charts auditoría
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 const histYears = ${JSON.stringify(histYears)};
 const histGanada = ${JSON.stringify(histGanada)};
 const histPerdida = ${JSON.stringify(histPerdida)};
@@ -1674,7 +1673,7 @@ new Chart(document.getElementById('historicoChart'),{
     {label:'Perdidas',data:histPerdida,backgroundColor:'${COLORS.red}',borderRadius:4},
     {label:'Canceladas',data:histCancelada,backgroundColor:'${COLORS.gray}',borderRadius:4}
   ]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11},boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': $'+(c.parsed.y/1e6).toFixed(2)+'M'}}},scales:{y:{stacked:false,ticks:{callback:v=>'$'+(v/1e6).toFixed(0)+'M',font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{color:'#f0f0f0'}},x:{ticks:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{display:false}}}}
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11},boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{stacked:false,ticks:{callback:v=>fmt(v),font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{color:'#f0f0f0'}},x:{ticks:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{display:false}}}}
 });
 
 new Chart(document.getElementById('tasksMonthlyChart'),{
@@ -1687,6 +1686,7 @@ new Chart(document.getElementById('tasksMonthlyChart'),{
 <script>
 const meses=${JSON.stringify(MONTHS)};
 const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 
 // 1. Scatter: Meetings vs Revenue per rep
 new Chart(document.getElementById('scatterChart'),{
@@ -1702,11 +1702,11 @@ new Chart(document.getElementById('scatterChart'),{
     plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){
       const d=${JSON.stringify(scatterData)};
       const item=d[c.dataIndex];
-      return item?item.name+': '+item.x+' reuniones, $'+(item.y/1000000).toFixed(2)+'M':'';
+      return item?item.name+': '+item.x+' reuniones, '+fmt(item.y):'';
     }}}},
     scales:{
       x:{title:{display:true,text:'Reuniones Comerciales',font:fontDef},ticks:{font:fontDef},grid:{color:'#f0f0f0'}},
-      y:{title:{display:true,text:'Revenue (MXN)',font:fontDef},ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef},grid:{color:'#f0f0f0'}}
+      y:{title:{display:true,text:'Revenue (MXN)',font:fontDef},ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}}
     }
   }
 });
@@ -1722,7 +1722,7 @@ new Chart(document.getElementById('trendChart'),{
     plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}}},
     scales:{
       y:{position:'left',title:{display:true,text:'Reuniones',font:fontDef},ticks:{font:fontDef},grid:{color:'#f0f0f0'}},
-      y1:{position:'right',title:{display:true,text:'Ventas ($)',font:fontDef},ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef},grid:{display:false}},
+      y1:{position:'right',title:{display:true,text:'Ventas ($)',font:fontDef},ticks:{callback:v=>fmt(v),font:fontDef},grid:{display:false}},
       x:{ticks:{font:fontDef}}
     }
   }
@@ -1754,8 +1754,8 @@ new Chart(document.getElementById('forecastChart'),{
     {label:'Proyeccion',data:projAccum,borderColor:'${COLORS.blue}',borderDash:[6,4],tension:0.4,borderWidth:2,pointRadius:2}
   ]},
   options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>'$'+(c.parsed.y/1000000).toFixed(2)+'M'}}},
-    scales:{y:{ticks:{callback:v=>'$'+(v/1000000).toFixed(0)+'M',font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}
+    plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)}}},
+    scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}
   }
 });
 
@@ -2082,7 +2082,7 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
 const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 
 // 1. Meta vs Venta mensual
 new Chart(document.getElementById('metaMesChart'),{
@@ -2382,7 +2382,7 @@ async function generateCobranza(query: QueryFn): Promise<ReportCache> {
 const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 const estColors = {Pagado:'${COLORS.green}','En Proceso de Pago':'${COLORS.blue}',Emitido:'${COLORS.yellow}',Cancelado:'${COLORS.gray}'};
 
 // 1. Estatus donut
@@ -2668,7 +2668,7 @@ async function generateCuentas(query: QueryFn): Promise<ReportCache> {
 <script>
 const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
 const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
-function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+function fmt(n){if(n==null||isNaN(n))return'$0';return'$'+Math.round(n).toLocaleString('es-MX')}
 
 // 1. Tipo de Cuenta (donut)
 const tipoData = ${JSON.stringify(tipoData)};

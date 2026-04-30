@@ -2666,11 +2666,10 @@
       state.eventSource = es;
 
       es.addEventListener('status', (e) => {
-        removeTypingIndicator();
-        removeFloatingTyping();
+        // Keep typing indicator alive — the bot is still working.
+        // Only the final message/done events should clear it.
         try {
           const data = JSON.parse(e.data);
-          // Only show if we have meaningful text; skip empty status updates
           const statusText = (data.text && data.text.trim()) || (data.message && data.message.trim()) || '';
           if (!statusText) return;
           addStatus(statusText);
