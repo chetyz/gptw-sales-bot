@@ -150,14 +150,14 @@ async function generateEjecutivo(query: QueryFn): Promise<ReportCache> {
     query(`SELECT CALENDAR_MONTH(Fecha_de_Emision__c) mes, SUM(Total__c) total FROM Invoice__c WHERE Fecha_de_Emision__c = LAST_YEAR AND Estatus__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emision__c)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate = LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
-    query(`SELECT Producto_Oportunidad__c prod, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Producto_Oportunidad__c != null GROUP BY Producto_Oportunidad__c ORDER BY SUM(Amount) DESC LIMIT 10`),
+    query(`SELECT Product2.Name prod, SUM(TotalPrice) total, COUNT(Id) cnt FROM OpportunityLineItem WHERE Opportunity.StageName = 'Ganada!' AND Opportunity.CloseDate = THIS_YEAR AND Opportunity.CurrencyIsoCode = 'MXN' GROUP BY Product2.Name ORDER BY SUM(TotalPrice) DESC LIMIT 10`),
     query(`SELECT LeadSource src, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND LeadSource != null GROUP BY LeadSource ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Account.Tipo_de_Cuenta__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Account.Tipo_de_Cuenta__c`),
     query(`SELECT StageName stage, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY StageName ORDER BY SUM(Amount) DESC`),
     query(`SELECT Owner.Name vendedor, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Owner.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Account.Name cuenta, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Account.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Account.Rango_de_Colaboradores__c rango, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Account.Rango_de_Colaboradores__c != null GROUP BY Account.Rango_de_Colaboradores__c ORDER BY SUM(Amount) DESC`),
-    query(`SELECT Account.Region__c region, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Account.Region__c != null GROUP BY Account.Region__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Account.Regi_n_Cliente_UEN__c region, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Account.Regi_n_Cliente_UEN__c != null GROUP BY Account.Regi_n_Cliente_UEN__c ORDER BY SUM(Amount) DESC`),
     query(`SELECT Tipo_de_Cuenta__c tipo, COUNT(Id) cnt FROM Account WHERE Tipo_de_Cuenta__c != null GROUP BY Tipo_de_Cuenta__c ORDER BY COUNT(Id) DESC`),
   ]);
 
