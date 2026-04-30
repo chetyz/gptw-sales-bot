@@ -1430,72 +1430,345 @@ new Chart(document.getElementById('taskTypeChart2'),{
   };
 }
 
-// ─── Report 5: Metas vs Real ─────────────────────────────────────────────────
+// ─── Report 5: Metas vs Real (réplica de "Metas/Crecimiento" del PBI) ───────
+
+const MES_NUM: Record<string, number> = {
+  'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+  'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12,
+};
 
 async function generateMetas(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
-  const mesActual = now.toLocaleString('es-MX', { month: 'long' });
+  const year = now.getFullYear();
+  const lastYear = year - 1;
+  const currentMonth = now.getMonth() + 1; // 1-12
 
-  const [metas, ventasPorEjec, ventasPorLDN] = await Promise.all([
-    query(`SELECT Ejecutivo_de_venta__c ejec, Meta_Mensual__c meta, Porcentaje_de_alcance__c pct FROM Meta_de_venta__c WHERE CreatedDate = THIS_YEAR ORDER BY Meta_Mensual__c DESC NULLS LAST LIMIT 20`),
-    query(`SELECT Owner.Name owner, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_MONTH AND CurrencyIsoCode = 'MXN' GROUP BY Owner.Name ORDER BY SUM(Amount) DESC LIMIT 15`),
-    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c ORDER BY SUM(Amount) DESC`),
+  const [
+    metasPorMes,            // Metas mensuales del año actual
+    metasPorEjec,           // Metas anuales por ejecutivo
+    metasPorLDN,            // Metas por LDN sumadas
+    ventasMes,              // Ventas YTD por mes
+    ventasMesLY,            // Ventas LY por mes
+    ventasEjec,             // Ventas YTD por ejecutivo
+    ventasEjecLY,           // Ventas LY por ejecutivo
+    ventasLDN,              // Ventas YTD por LDN
+    cuentasNuevas,          // Ventas a cuentas nuevas YTD
+    cuentasNuevasLY,        // Ventas a cuentas nuevas LY
+    ticketProm,             // Ticket promedio YTD
+    ticketPromLY,           // Ticket promedio LY
+    facturacionMes,         // Facturación emitida YTD por mes
+  ] = await Promise.all([
+    query(`SELECT Mes__c, SUM(Meta_Mensual__c), SUM(LDN1_meta_total__c), SUM(LDN2_meta_total__c), SUM(LDN_3_Meta_total__c), SUM(LDN_4_Meta_total__c) FROM Meta_de_venta__c WHERE A_o__c = ${year} GROUP BY Mes__c`),
+    query(`SELECT Ejecutivo_de_venta__c, SUM(Meta_Mensual__c), COUNT(Id) FROM Meta_de_venta__c WHERE A_o__c = ${year} AND Ejecutivo_de_venta__c != null GROUP BY Ejecutivo_de_venta__c ORDER BY SUM(Meta_Mensual__c) DESC LIMIT 25`),
+    query(`SELECT SUM(LDN1_meta_total__c), SUM(LDN2_meta_total__c), SUM(LDN_3_Meta_total__c), SUM(LDN_4_Meta_total__c) FROM Meta_de_venta__c WHERE A_o__c = ${year}`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT OwnerId, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Amount != null GROUP BY OwnerId ORDER BY SUM(Amount) DESC NULLS LAST LIMIT 25`),
+    query(`SELECT OwnerId, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' AND Amount != null GROUP BY OwnerId`),
+    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Nuevo'`),
+    query(`SELECT SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Nuevo'`),
+    query(`SELECT AVG(Amount) avg FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN'`),
+    query(`SELECT AVG(Amount) avg FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN'`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Estatus_de__c != 'Cancelado' GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c)`),
   ]);
 
-  const ventasEjec = (ventasPorEjec.records || []).map((r: any) => ({ name: r.owner || 'Sin asignar', total: r.total || 0, cnt: r.cnt }));
-  const ldnData = (ventasPorLDN.records || []).map((r: any) => ({ ldn: r.ldn, total: r.total || 0, cnt: r.cnt }));
-  const totalMes = ventasEjec.reduce((s: number, v: any) => s + v.total, 0);
+  // Helper: extraer valores agregados de SF (que vienen como expr0, expr1, etc.)
+  function getExpr(rec: any, idx: number): number {
+    return Number(rec[`expr${idx}`]) || 0;
+  }
+  function getMonthVal(rec: any): number | null {
+    for (const k of Object.keys(rec)) {
+      if (k === 'attributes' || k === 'total' || k === 'cnt' || k === 'avg') continue;
+      const v = Number(rec[k]); if (!isNaN(v) && v >= 1 && v <= 12) return v;
+    }
+    return null;
+  }
+
+  // ── Procesar metas mensuales: array de 12 con metaTotal y por LDN ──
+  const metaMensual = new Array(12).fill(0);
+  const metaLDN1 = new Array(12).fill(0);
+  const metaLDN2 = new Array(12).fill(0);
+  const metaLDN3 = new Array(12).fill(0);
+  const metaLDN4 = new Array(12).fill(0);
+  (metasPorMes.records || []).forEach((r: any) => {
+    const mNum = MES_NUM[r.Mes__c] || 0;
+    if (mNum >= 1 && mNum <= 12) {
+      const idx = mNum - 1;
+      metaMensual[idx] = getExpr(r, 0);
+      metaLDN1[idx] = getExpr(r, 1);
+      metaLDN2[idx] = getExpr(r, 2);
+      metaLDN3[idx] = getExpr(r, 3);
+      metaLDN4[idx] = getExpr(r, 4);
+    }
+  });
+  const metaAnual = metaMensual.reduce((a, b) => a + b, 0);
+  const metaYTD = metaMensual.slice(0, currentMonth).reduce((a, b) => a + b, 0);
+
+  // ── Ventas mensuales (este año + LY) ──
+  const ventaMes = new Array(12).fill(0);
+  const ventaMesLY = new Array(12).fill(0);
+  (ventasMes.records || []).forEach((r: any) => { const m = getMonthVal(r); if (m) ventaMes[m - 1] = r.total || 0; });
+  (ventasMesLY.records || []).forEach((r: any) => { const m = getMonthVal(r); if (m) ventaMesLY[m - 1] = r.total || 0; });
+  const ventaYTD = ventaMes.reduce((a, b) => a + b, 0);
+  const ventaYTDLY = ventaMesLY.slice(0, currentMonth).reduce((a, b) => a + b, 0);
+
+  const factMes = new Array(12).fill(0);
+  (facturacionMes.records || []).forEach((r: any) => { const m = getMonthVal(r); if (m) factMes[m - 1] = r.total || 0; });
+  const factYTD = factMes.reduce((a, b) => a + b, 0);
+
+  // ── KPIs principales ──
+  const alcanceYTD = metaYTD > 0 ? (ventaYTD / metaYTD) * 100 : 0;
+  const alcanceAnual = metaAnual > 0 ? (ventaYTD / metaAnual) * 100 : 0;
+  const faltanteYTD = metaYTD - ventaYTD;
+  const ticketAvg = ticketProm.records?.[0]?.avg || 0;
+  const ticketAvgLY = ticketPromLY.records?.[0]?.avg || 0;
+  const cuentasNuevasTotal = cuentasNuevas.records?.[0]?.total || 0;
+  const cuentasNuevasCnt = cuentasNuevas.records?.[0]?.cnt || 0;
+  const cuentasNuevasTotalLY = cuentasNuevasLY.records?.[0]?.total || 0;
+  const pctVarVentaLY = ventaYTDLY > 0 ? ((ventaYTD - ventaYTDLY) / ventaYTDLY) * 100 : 0;
+  const pctVarTicketLY = ticketAvgLY > 0 ? ((ticketAvg - ticketAvgLY) / ticketAvgLY) * 100 : 0;
+  const pctCuentasNuevas = ventaYTD > 0 ? (cuentasNuevasTotal / ventaYTD) * 100 : 0;
+
+  // ── User name lookup ──
+  const userIds = new Set<string>();
+  (metasPorEjec.records || []).forEach((r: any) => userIds.add(r.Ejecutivo_de_venta__c));
+  (ventasEjec.records || []).forEach((r: any) => userIds.add(r.OwnerId));
+  (ventasEjecLY.records || []).forEach((r: any) => userIds.add(r.OwnerId));
+  const userNames = new Map<string, string>();
+  try {
+    const allUsers = await query(`SELECT Id, Name FROM User WHERE IsActive = true LIMIT 200`);
+    (allUsers.records || []).forEach((u: any) => userNames.set(u.Id, u.Name));
+  } catch (e: any) {
+    process.stderr.write(`[reports] User query failed: ${e.message}\n`);
+  }
+
+  // ── Ranking ejecutivos: Meta vs Venta vs Var LY ──
+  const metaByEjec = new Map<string, number>();
+  (metasPorEjec.records || []).forEach((r: any) => {
+    metaByEjec.set(r.Ejecutivo_de_venta__c, getExpr(r, 0));
+  });
+  const ventaByEjec = new Map<string, number>();
+  const ventaCntByEjec = new Map<string, number>();
+  (ventasEjec.records || []).forEach((r: any) => {
+    ventaByEjec.set(r.OwnerId, r.total || 0);
+    ventaCntByEjec.set(r.OwnerId, r.cnt || 0);
+  });
+  const ventaByEjecLY = new Map<string, number>();
+  (ventasEjecLY.records || []).forEach((r: any) => ventaByEjecLY.set(r.OwnerId, r.total || 0));
+
+  const allEjecIds = Array.from(new Set([...metaByEjec.keys(), ...ventaByEjec.keys()]));
+  const ranking = allEjecIds.map(id => {
+    const name = userNames.get(id) || 'Sin nombre';
+    const metaTot = metaByEjec.get(id) || 0;
+    const ventaTot = ventaByEjec.get(id) || 0;
+    const ventaTotLY = ventaByEjecLY.get(id) || 0;
+    const cnt = ventaCntByEjec.get(id) || 0;
+    const alcance = metaTot > 0 ? (ventaTot / metaTot) * 100 : 0;
+    const varLY = ventaTotLY > 0 ? ((ventaTot - ventaTotLY) / ventaTotLY) * 100 : (ventaTot > 0 ? 100 : 0);
+    const faltante = Math.max(0, metaTot - ventaTot);
+    return { id, name, meta: metaTot, venta: ventaTot, ventaLY: ventaTotLY, cnt, alcance, varLY, faltante };
+  })
+    .filter(r => r.meta > 0 || r.venta > 0)
+    .sort((a, b) => b.alcance - a.alcance);
+
+  // ── Por LDN: meta vs venta ──
+  const metaLDNTotals = (metasPorLDN.records || [])[0] || {};
+  const ventaLDNMap = new Map<string, number>();
+  (ventasLDN.records || []).forEach((r: any) => ventaLDNMap.set(r.ldn, r.total || 0));
+  const ldnRanking = [
+    { name: 'LDN 1', meta: getExpr(metaLDNTotals, 0), venta: ventaLDNMap.get('LDN 1') || 0 },
+    { name: 'LDN 2', meta: getExpr(metaLDNTotals, 1), venta: ventaLDNMap.get('LDN 2') || 0 },
+    { name: 'LDN 3', meta: getExpr(metaLDNTotals, 2), venta: ventaLDNMap.get('LDN 3') || 0 },
+    { name: 'LDN 4', meta: getExpr(metaLDNTotals, 3), venta: ventaLDNMap.get('LDN 4') || 0 },
+  ].map(l => ({ ...l, alcance: l.meta > 0 ? (l.venta / l.meta) * 100 : 0 }));
+
+  // Sortear ranking por venta también (para chart de top vendedores)
+  const topVenta = [...ranking].sort((a, b) => b.venta - a.venta).slice(0, 12);
 
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const semaforoAlcance = (pct: number) => pct >= 100 ? COLORS.green : pct >= 80 ? COLORS.yellow : pct >= 50 ? '#F97316' : COLORS.red;
+  const tagAlcance = (pct: number) => pct >= 100 ? 'tag-green' : pct >= 80 ? 'tag-yellow' : 'tag-red';
+
   const body = `
+<!-- KPIs -->
 <div class="kpi-row">
-  <div class="kpi">
-    <div class="label">Venta del Mes (${mesActual})</div>
-    <div class="value">${fmtFull(totalMes)}</div>
+  <div class="kpi" style="border-top:3px solid ${semaforoAlcance(alcanceYTD)}">
+    <div class="label">% Alcance YTD</div>
+    <div class="value" style="color:${semaforoAlcance(alcanceYTD)}">${alcanceYTD.toFixed(1)}%</div>
+    <div class="sub">${fmt(ventaYTD)} / ${fmt(metaYTD)}</div>
   </div>
-  <div class="kpi">
-    <div class="label">Ejecutivos con Venta</div>
-    <div class="value">${ventasEjec.length}</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Venta YTD</div>
+    <div class="value">${fmtFull(ventaYTD)}</div>
+    <div class="sub" style="color:${pctVarVentaLY >= 0 ? COLORS.green : COLORS.red}">${pctVarVentaLY >= 0 ? '+' : ''}${pctVarVentaLY.toFixed(1)}% vs ${lastYear}</div>
   </div>
-  <div class="kpi">
-    <div class="label">Segmentos Activos</div>
-    <div class="value">${ldnData.length}</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.blue}">
+    <div class="label">$ Meta Anual ${year}</div>
+    <div class="value">${fmt(metaAnual)}</div>
+    <div class="sub">${alcanceAnual.toFixed(1)}% del anual logrado</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+    <div class="label">$ Faltante para Meta YTD</div>
+    <div class="value" style="color:${faltanteYTD > 0 ? COLORS.red : COLORS.green}">${faltanteYTD > 0 ? fmt(faltanteYTD) : '✓ Cumplida'}</div>
+    <div class="sub">${currentMonth} de 12 meses</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label">$ Ticket Promedio</div>
+    <div class="value">${fmt(ticketAvg)}</div>
+    <div class="sub" style="color:${pctVarTicketLY >= 0 ? COLORS.green : COLORS.red}">${pctVarTicketLY >= 0 ? '+' : ''}${pctVarTicketLY.toFixed(1)}% vs ${lastYear}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
+    <div class="label">$ Cuentas Nuevas YTD</div>
+    <div class="value">${fmt(cuentasNuevasTotal)}</div>
+    <div class="sub">${cuentasNuevasCnt} opps · ${pctCuentasNuevas.toFixed(0)}% del total</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.gray}">
+    <div class="label">$ Facturación Emitida YTD</div>
+    <div class="value">${fmt(factYTD)}</div>
+    <div class="sub">vs venta cerrada</div>
   </div>
 </div>
 
-<div class="table-card">
-  <h3>Ranking de Ejecutivos - ${mesActual} ${now.getFullYear()}</h3>
+<!-- ROW 1: Meta vs Venta mensual (column) + Acumulado (line) -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3>Meta vs Venta Mensual ${year}</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="metaMesChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Acumulado: Meta vs Venta vs LY</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="acumChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 2: Alcance por Vendedor + Crecimiento por Vendedor -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3>% Alcance por Vendedor</h3>
+    <div class="chart-wrap" style="height:380px"><canvas id="alcanceChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>% Crecimiento por Vendedor (vs ${lastYear})</h3>
+    <div class="chart-wrap" style="height:380px"><canvas id="crecimientoChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Por LDN -->
+<div class="chart-row">
+  <div class="chart-card" style="grid-column:1/-1">
+    <h3>Meta vs Venta por LDN</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="ldnMetaChart"></canvas></div>
+  </div>
+</div>
+
+<!-- TABLA: Ranking ejecutivos -->
+<div class="table-card" style="margin-bottom:24px">
+  <h3>Ranking de Ejecutivos: Meta vs Real ${year}</h3>
   <table>
-    <tr><th>#</th><th>Ejecutivo</th><th>Venta</th><th>Opps</th><th></th></tr>
-    ${ventasEjec.map((v: any, i: number) => `<tr><td><strong>${i + 1}</strong></td><td>${v.name}</td><td><strong>${fmtFull(v.total)}</strong></td><td>${v.cnt}</td><td><div style="background:#e5e7eb;border-radius:4px;height:8px;width:150px"><div style="background:${COLORS.red};height:8px;border-radius:4px;width:${ventasEjec[0]?.total ? Math.round((v.total / ventasEjec[0].total) * 100) : 0}%"></div></div></td></tr>`).join('')}
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Ejecutivo</th>
+        <th style="text-align:right">$ Meta</th>
+        <th style="text-align:right">$ Venta</th>
+        <th style="text-align:right"># Opp</th>
+        <th style="text-align:right">% Alcance</th>
+        <th style="text-align:right">$ Faltante</th>
+        <th style="text-align:right">% vs ${lastYear}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${ranking.slice(0, 20).map((r, i) => `
+      <tr>
+        <td><strong>${i + 1}</strong></td>
+        <td>${r.name.replace(/</g, '&lt;')}</td>
+        <td style="text-align:right">${fmtFull(r.meta)}</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(r.venta)}</td>
+        <td style="text-align:right;color:#6B7280">${r.cnt}</td>
+        <td style="text-align:right"><span class="tag ${tagAlcance(r.alcance)}">${r.alcance.toFixed(0)}%</span></td>
+        <td style="text-align:right;color:${r.faltante > 0 ? COLORS.red : COLORS.green}">${r.faltante > 0 ? fmt(r.faltante) : '—'}</td>
+        <td style="text-align:right;color:${r.varLY >= 0 ? COLORS.green : COLORS.red}">${r.varLY >= 0 ? '+' : ''}${r.varLY.toFixed(0)}%</td>
+      </tr>`).join('')}
+    </tbody>
   </table>
 </div>
 
-<div class="chart-row">
-  <div class="chart-card">
-    <h3>Top Ejecutivos del Mes</h3>
-    <div class="chart-wrap"><canvas id="topChart"></canvas></div>
-  </div>
-  <div class="chart-card">
-    <h3>Venta por Segmento (LDN) - YTD</h3>
-    <div class="chart-wrap"><canvas id="ldnChart"></canvas></div>
-  </div>
+<!-- TABLA: Por LDN -->
+<div class="table-card">
+  <h3>Por Línea de Negocio (LDN)</h3>
+  <table>
+    <thead><tr><th>LDN</th><th style="text-align:right">$ Meta</th><th style="text-align:right">$ Venta</th><th style="text-align:right">% Alcance</th></tr></thead>
+    <tbody>
+      ${ldnRanking.map(l => `
+      <tr>
+        <td><strong>${l.name}</strong></td>
+        <td style="text-align:right">${fmtFull(l.meta)}</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(l.venta)}</td>
+        <td style="text-align:right"><span class="tag ${tagAlcance(l.alcance)}">${l.alcance.toFixed(0)}%</span></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
 </div>
 
 <script>
-const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
 
-new Chart(document.getElementById('topChart'),{
+// 1. Meta vs Venta mensual
+new Chart(document.getElementById('metaMesChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(ventasEjec.slice(0, 10).map((v: any) => v.name.split(' ').slice(0, 2).join(' ')))},datasets:[{data:${JSON.stringify(ventasEjec.slice(0, 10).map((v: any) => v.total))},backgroundColor:'rgba(255,22,40,0.7)',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$'+c.parsed.x.toLocaleString('es-MX')}}},scales:{x:{ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef}},y:{ticks:{font:{...fontDef,size:10}}}}}
+  data:{labels:meses,datasets:[
+    {label:'Meta',data:${JSON.stringify(metaMensual)},backgroundColor:'rgba(59,130,246,0.5)',borderRadius:4},
+    {label:'Venta',data:${JSON.stringify(ventaMes)},backgroundColor:'rgba(255,22,40,0.85)',borderRadius:4}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}
 });
 
-new Chart(document.getElementById('ldnChart'),{
+// 2. Acumulado
+const metaAcum = ${JSON.stringify(metaMensual)}.reduce((acc,v,i)=>{acc.push((acc[i-1]||0)+v);return acc},[]);
+const ventaAcum = ${JSON.stringify(ventaMes)}.reduce((acc,v,i)=>{acc.push((acc[i-1]||0)+v);return acc},[]);
+const ventaAcumLY = ${JSON.stringify(ventaMesLY)}.reduce((acc,v,i)=>{acc.push((acc[i-1]||0)+v);return acc},[]);
+new Chart(document.getElementById('acumChart'),{
+  type:'line',
+  data:{labels:meses,datasets:[
+    {label:'Meta acum',data:metaAcum,borderColor:'${COLORS.blue}',borderDash:[5,5],fill:false,tension:0.4,borderWidth:2,pointRadius:3},
+    {label:'Venta acum '+${year},data:ventaAcum,borderColor:'${COLORS.red}',backgroundColor:'rgba(255,22,40,0.08)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:4},
+    {label:'Venta acum ${lastYear}',data:ventaAcumLY,borderColor:'${COLORS.gray}',borderDash:[3,3],fill:false,tension:0.4,borderWidth:2,pointRadius:2}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef},grid:{display:false}}}}
+});
+
+// 3. Alcance por Vendedor (bar horizontal con color por threshold)
+const alcanceData = ${JSON.stringify(ranking.slice(0, 15))};
+const alcColors = alcanceData.map(d=>d.alcance>=100?'${COLORS.green}':d.alcance>=80?'${COLORS.yellow}':d.alcance>=50?'#F97316':'${COLORS.red}');
+new Chart(document.getElementById('alcanceChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(ldnData.map((l: any) => l.ldn))},datasets:[{data:${JSON.stringify(ldnData.map((l: any) => l.total))},backgroundColor:['${COLORS.red}','${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.gray}','#8B5CF6']}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$'+(c.parsed.y/1000000).toFixed(2)+'M | '+${JSON.stringify(ldnData.map((l: any) => l.cnt))}[c.dataIndex]+' opps'}}},scales:{y:{ticks:{callback:v=>'$'+(v/1000000).toFixed(0)+'M',font:fontDef}},x:{ticks:{font:fontDef}}}}
+  data:{labels:alcanceData.map(d=>d.name.split(' ').slice(0,2).join(' ')),datasets:[{data:alcanceData.map(d=>d.alcance),backgroundColor:alcColors,borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(1)+'% | Meta: '+fmt(alcanceData[c.dataIndex].meta)+' · Venta: '+fmt(alcanceData[c.dataIndex].venta)}}},scales:{x:{ticks:{callback:v=>v+'%',font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}
+});
+
+// 4. Crecimiento por vendedor (% vs LY)
+const topVenta = ${JSON.stringify(topVenta)};
+const crecData = topVenta.filter(d => d.ventaLY > 0);
+new Chart(document.getElementById('crecimientoChart'),{
+  type:'bar',
+  data:{labels:crecData.map(d=>d.name.split(' ').slice(0,2).join(' ')),datasets:[{data:crecData.map(d=>d.varLY),backgroundColor:crecData.map(d=>d.varLY>=0?'${COLORS.green}':'${COLORS.red}'),borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(1)+'% | Venta: '+fmt(crecData[c.dataIndex].venta)+' · LY: '+fmt(crecData[c.dataIndex].ventaLY)}}},scales:{x:{ticks:{callback:v=>v+'%',font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}
+});
+
+// 5. Por LDN
+const ldnData = ${JSON.stringify(ldnRanking)};
+new Chart(document.getElementById('ldnMetaChart'),{
+  type:'bar',
+  data:{labels:ldnData.map(d=>d.name),datasets:[
+    {label:'Meta',data:ldnData.map(d=>d.meta),backgroundColor:'rgba(59,130,246,0.5)',borderRadius:4},
+    {label:'Venta',data:ldnData.map(d=>d.venta),backgroundColor:'rgba(255,22,40,0.85)',borderRadius:4}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)+(c.dataset.label==='Venta'?' ('+ldnData[c.dataIndex].alcance.toFixed(0)+'% alcance)':'')}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
 });
 </script>`;
 
@@ -1503,9 +1776,9 @@ new Chart(document.getElementById('ldnChart'),{
     id: 'metas',
     title: 'Metas y Ranking',
     icon: '&#127942;',
-    html: dashboardShell('Metas y Ranking de Ejecutivos', date, body),
+    html: dashboardShell(`Metas y Ranking - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `Venta del mes: ${fmt(totalMes)} | Top: ${ventasEjec[0]?.name || 'N/A'} (${fmt(ventasEjec[0]?.total || 0)})`,
+    summary: `Alcance YTD: ${alcanceYTD.toFixed(0)}% (${fmt(ventaYTD)} de ${fmt(metaYTD)}) | Meta anual: ${fmt(metaAnual)} | ${pctVarVentaLY.toFixed(0)}% vs ${lastYear}`,
   };
 }
 
