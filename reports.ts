@@ -1459,7 +1459,7 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
     facturacionMes,         // Facturación emitida YTD por mes
   ] = await Promise.all([
     query(`SELECT Mes__c, SUM(Meta_Mensual__c), SUM(LDN1_meta_total__c), SUM(LDN2_meta_total__c), SUM(LDN_3_Meta_total__c), SUM(LDN_4_Meta_total__c) FROM Meta_de_venta__c WHERE A_o__c = ${year} GROUP BY Mes__c`),
-    query(`SELECT Ejecutivo_de_venta__c, SUM(Meta_Mensual__c), COUNT(Id) FROM Meta_de_venta__c WHERE A_o__c = ${year} AND Ejecutivo_de_venta__c != null GROUP BY Ejecutivo_de_venta__c ORDER BY SUM(Meta_Mensual__c) DESC LIMIT 25`),
+    query(`SELECT Ejecutivo_de_venta__c, Mes__c, SUM(Meta_Mensual__c) FROM Meta_de_venta__c WHERE A_o__c = ${year} AND Ejecutivo_de_venta__c != null GROUP BY Ejecutivo_de_venta__c, Mes__c`),
     query(`SELECT SUM(LDN1_meta_total__c), SUM(LDN2_meta_total__c), SUM(LDN_3_Meta_total__c), SUM(LDN_4_Meta_total__c) FROM Meta_de_venta__c WHERE A_o__c = ${year}`),
     query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
     query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
@@ -1544,9 +1544,17 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
   }
 
   // ── Ranking ejecutivos: Meta vs Venta vs Var LY ──
-  const metaByEjec = new Map<string, number>();
+  // Calcular dos metas por ejecutivo: anual completa + YTD (solo meses transcurridos)
+  const metaByEjec = new Map<string, number>();        // meta anual
+  const metaByEjecYTD = new Map<string, number>();     // meta YTD (solo meses ya pasados)
   (metasPorEjec.records || []).forEach((r: any) => {
-    metaByEjec.set(r.Ejecutivo_de_venta__c, getExpr(r, 0));
+    const ejecId = r.Ejecutivo_de_venta__c;
+    const metaMonth = getExpr(r, 0);
+    const monthNum = MES_NUM[r.Mes__c] || 0;
+    metaByEjec.set(ejecId, (metaByEjec.get(ejecId) || 0) + metaMonth);
+    if (monthNum >= 1 && monthNum <= currentMonth) {
+      metaByEjecYTD.set(ejecId, (metaByEjecYTD.get(ejecId) || 0) + metaMonth);
+    }
   });
   const ventaByEjec = new Map<string, number>();
   const ventaCntByEjec = new Map<string, number>();
@@ -1560,14 +1568,15 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
   const allEjecIds = Array.from(new Set([...metaByEjec.keys(), ...ventaByEjec.keys()]));
   const ranking = allEjecIds.map(id => {
     const name = userNames.get(id) || 'Sin nombre';
-    const metaTot = metaByEjec.get(id) || 0;
+    const metaAnualEjec = metaByEjec.get(id) || 0;
+    const metaYTDEjec = metaByEjecYTD.get(id) || 0;
     const ventaTot = ventaByEjec.get(id) || 0;
     const ventaTotLY = ventaByEjecLY.get(id) || 0;
     const cnt = ventaCntByEjec.get(id) || 0;
-    const alcance = metaTot > 0 ? (ventaTot / metaTot) * 100 : 0;
+    const alcance = metaYTDEjec > 0 ? (ventaTot / metaYTDEjec) * 100 : 0; // % alcance vs meta YTD prorrateada
     const varLY = ventaTotLY > 0 ? ((ventaTot - ventaTotLY) / ventaTotLY) * 100 : (ventaTot > 0 ? 100 : 0);
-    const faltante = Math.max(0, metaTot - ventaTot);
-    return { id, name, meta: metaTot, venta: ventaTot, ventaLY: ventaTotLY, cnt, alcance, varLY, faltante };
+    const faltante = Math.max(0, metaYTDEjec - ventaTot);
+    return { id, name, meta: metaAnualEjec, metaYTD: metaYTDEjec, venta: ventaTot, ventaLY: ventaTotLY, cnt, alcance, varLY, faltante };
   })
     .filter(r => r.meta > 0 || r.venta > 0)
     .sort((a, b) => b.alcance - a.alcance);
@@ -1671,10 +1680,11 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
       <tr>
         <th>#</th>
         <th>Ejecutivo</th>
-        <th style="text-align:right">$ Meta</th>
-        <th style="text-align:right">$ Venta</th>
+        <th style="text-align:right">$ Meta YTD</th>
+        <th style="text-align:right">$ Meta Anual</th>
+        <th style="text-align:right">$ Venta YTD</th>
         <th style="text-align:right"># Opp</th>
-        <th style="text-align:right">% Alcance</th>
+        <th style="text-align:right">% Alcance YTD</th>
         <th style="text-align:right">$ Faltante</th>
         <th style="text-align:right">% vs ${lastYear}</th>
       </tr>
@@ -1684,7 +1694,8 @@ async function generateMetas(query: QueryFn): Promise<ReportCache> {
       <tr>
         <td><strong>${i + 1}</strong></td>
         <td>${r.name.replace(/</g, '&lt;')}</td>
-        <td style="text-align:right">${fmtFull(r.meta)}</td>
+        <td style="text-align:right">${fmtFull(r.metaYTD)}</td>
+        <td style="text-align:right;color:#6B7280">${fmtFull(r.meta)}</td>
         <td style="text-align:right;font-weight:500">${fmtFull(r.venta)}</td>
         <td style="text-align:right;color:#6B7280">${r.cnt}</td>
         <td style="text-align:right"><span class="tag ${tagAlcance(r.alcance)}">${r.alcance.toFixed(0)}%</span></td>
@@ -1748,7 +1759,7 @@ const alcColors = alcanceData.map(d=>d.alcance>=100?'${COLORS.green}':d.alcance>
 new Chart(document.getElementById('alcanceChart'),{
   type:'bar',
   data:{labels:alcanceData.map(d=>d.name.split(' ').slice(0,2).join(' ')),datasets:[{data:alcanceData.map(d=>d.alcance),backgroundColor:alcColors,borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(1)+'% | Meta: '+fmt(alcanceData[c.dataIndex].meta)+' · Venta: '+fmt(alcanceData[c.dataIndex].venta)}}},scales:{x:{ticks:{callback:v=>v+'%',font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(1)+'% | Meta YTD: '+fmt(alcanceData[c.dataIndex].metaYTD)+' · Venta: '+fmt(alcanceData[c.dataIndex].venta)}}},scales:{x:{ticks:{callback:v=>v+'%',font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm},grid:{display:false}}}}
 });
 
 // 4. Crecimiento por vendedor (% vs LY)
