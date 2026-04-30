@@ -1816,10 +1816,10 @@ async function generateCobranza(query: QueryFn): Promise<ReportCache> {
     query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, Estatus_de__c e, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c), Estatus_de__c`),
     query(`SELECT Pol_tica_de_Pago__c p, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 AND Pol_tica_de_Pago__c != null GROUP BY Pol_tica_de_Pago__c ORDER BY SUM(Importe_MXN__c) DESC`),
     query(`SELECT SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c < ${year}-01-01 AND Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0`),
-    query(`SELECT Id, Name, Account.Name, Importe_MXN__c, Estatus_de__c, Fecha_de_Emisi_n__c, Pol_tica_de_Pago__c, Fecha_de_Pago__c FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 ORDER BY Importe_MXN__c DESC NULLS LAST LIMIT 20`),
-    query(`SELECT Account.Name a, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 GROUP BY Account.Name ORDER BY SUM(Importe_MXN__c) DESC NULLS LAST LIMIT 10`),
-    query(`SELECT Uso_de_CFDI__c u, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND Uso_de_CFDI__c != null GROUP BY Uso_de_CFDI__c ORDER BY SUM(Importe_MXN__c) DESC`),
-    query(`SELECT Condiciones__c c, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND Condiciones__c != null GROUP BY Condiciones__c`),
+    query(`SELECT Id, Name, Raz_n_Social__c, Importe_MXN__c, Estatus_de__c, Fecha_de_Emisi_n__c, Pol_tica_de_Pago__c, Fecha_de_Pago__c FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 ORDER BY Importe_MXN__c DESC NULLS LAST LIMIT 20`),
+    query(`SELECT Raz_n_Social__c a, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 AND Raz_n_Social__c != null GROUP BY Raz_n_Social__c ORDER BY SUM(Importe_MXN__c) DESC NULLS LAST LIMIT 10`),
+    query(`SELECT CFDI__c u, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND CFDI__c != null GROUP BY CFDI__c ORDER BY SUM(Importe_MXN__c) DESC`),
+    query(`SELECT Condiciones_de_Pago__c c, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND Condiciones_de_Pago__c != null GROUP BY Condiciones_de_Pago__c`),
   ]);
 
   function getMonthVal(rec: any): number | null {
@@ -1882,7 +1882,7 @@ async function generateCobranza(query: QueryFn): Promise<ReportCache> {
     return {
       id: r.Id,
       name: r.Name,
-      acct: r.Account?.Name || '—',
+      acct: r.Raz_n_Social__c || '—',
       total: r.Importe_MXN__c || 0,
       estatus: r.Estatus_de__c,
       emision: r.Fecha_de_Emisi_n__c || '—',
