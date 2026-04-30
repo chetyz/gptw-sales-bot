@@ -980,23 +980,27 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     eventsByMonth,
     salesByMonth,
     tasksByOwner,
+    // Nuevas queries del PBI Auditoría Comerciales / Control Diario
+    tasksStatusYTD,         // # actividades por status (Open/Completed) YTD
+    tasksByMonthYTD,        // # actividades creadas por mes YTD (line trend)
+    historicoVentasAnio,    // Histórico ventas 4 años (Ganadas/Perdidas/Canceladas)
+    auditCuentas,           // Top 15 cuentas: $ venta YTD + # opps
+    facturacionEstatus,     // $ Facturación por estatus YTD
   ] = await Promise.all([
-    // Event types breakdown (YTD)
     query(`SELECT Type, COUNT(Id) cnt FROM Event WHERE CreatedDate = THIS_YEAR AND Type != null GROUP BY Type ORDER BY COUNT(Id) DESC`),
-    // Client-facing meetings per owner (YTD)
     query(`SELECT OwnerId, COUNT(Id) cnt FROM Event WHERE CreatedDate = THIS_YEAR AND Type IN ('Reunión Primera visita comercial','Reunión Presentación de propuesta','Reunión de negociación','Reunión de indagación de necesidades','Entrega de Resultados') GROUP BY OwnerId ORDER BY COUNT(Id) DESC LIMIT 15`),
-    // Sales per owner (YTD)
     query(`SELECT OwnerId, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY OwnerId ORDER BY SUM(Amount) DESC LIMIT 15`),
-    // Win rate per owner (YTD)
     query(`SELECT OwnerId, StageName, COUNT(Id) cnt FROM Opportunity WHERE CloseDate = THIS_YEAR AND StageName IN ('Ganada!','Perdida') GROUP BY OwnerId, StageName ORDER BY OwnerId`),
-    // Task subtypes this month
     query(`SELECT TaskSubtype tipo, COUNT(Id) cnt FROM Task WHERE CreatedDate = THIS_MONTH AND TaskSubtype != null GROUP BY TaskSubtype ORDER BY COUNT(Id) DESC LIMIT 10`),
-    // Client meetings by month (YTD) for trend
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Event WHERE CreatedDate = THIS_YEAR AND Type IN ('Reunión Primera visita comercial','Reunión Presentación de propuesta','Reunión de negociación','Reunión de indagación de necesidades') GROUP BY CALENDAR_MONTH(CreatedDate) ORDER BY CALENDAR_MONTH(CreatedDate)`),
-    // Sales by month (YTD) for correlation
     query(`SELECT CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_MONTH(CloseDate)`),
-    // Activities per owner this month (Tasks) - MUST BE LAST to match destructuring
     query(`SELECT OwnerId, COUNT(Id) cnt FROM Task WHERE CreatedDate = THIS_MONTH GROUP BY OwnerId ORDER BY COUNT(Id) DESC LIMIT 15`),
+    // Nuevas
+    query(`SELECT Status s, COUNT(Id) cnt FROM Task WHERE CreatedDate = THIS_YEAR GROUP BY Status`),
+    query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Task WHERE CreatedDate = THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
+    query(`SELECT CALENDAR_YEAR(CloseDate) y, StageName s, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE CurrencyIsoCode='MXN' AND CloseDate >= ${year - 3}-01-01 AND CloseDate <= ${year}-12-31 AND StageName IN ('Ganada!','Perdida','Cancelada') GROUP BY CALENDAR_YEAR(CloseDate), StageName ORDER BY CALENDAR_YEAR(CloseDate)`),
+    query(`SELECT Account.Name a, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Amount != null GROUP BY Account.Name ORDER BY SUM(Amount) DESC NULLS LAST LIMIT 15`),
+    query(`SELECT Estatus__c e, SUM(Total__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emision__c = THIS_YEAR GROUP BY Estatus__c`),
   ]);
 
   // Get user names for the owner IDs we found
@@ -1108,6 +1112,34 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     .sort((a, b) => b.winRate - a.winRate)
     .slice(0, 12);
 
+  // ── Nuevos datos del PBI Auditoría/Control Diario ──
+
+  // Actividades YTD por status
+  const tasksOpen = (tasksStatusYTD.records || []).find((r: any) => r.s === 'Open')?.cnt || 0;
+  const tasksCompleted = (tasksStatusYTD.records || []).find((r: any) => r.s === 'Completed')?.cnt || 0;
+  const tasksTotalYTD = tasksOpen + tasksCompleted;
+  const tasksCloseRate = tasksTotalYTD > 0 ? (tasksCompleted / tasksTotalYTD) * 100 : 0;
+
+  // Actividades por mes YTD (line trend)
+  const tasksMonthly = new Array(12).fill(0);
+  (tasksByMonthYTD.records || []).forEach((r: any) => { const m = getMonthVal(r); if (m) tasksMonthly[m - 1] = r.cnt || 0; });
+
+  // Histórico ventas por año (3-4 años)
+  const histRecs = (historicoVentasAnio.records || []) as any[];
+  const histYears: number[] = Array.from(new Set(histRecs.map((r: any) => r.y).filter((y: any) => y))).sort();
+  const histGanada = histYears.map(y => histRecs.find((r: any) => r.y === y && r.s === 'Ganada!')?.total || 0);
+  const histPerdida = histYears.map(y => histRecs.find((r: any) => r.y === y && r.s === 'Perdida')?.total || 0);
+  const histCancelada = histYears.map(y => histRecs.find((r: any) => r.y === y && r.s === 'Cancelada')?.total || 0);
+
+  // Auditoría top cuentas
+  const auditTop = (auditCuentas.records || []).map((r: any) => ({ name: r.a, total: r.total || 0, cnt: r.cnt }));
+
+  // Facturación por estatus
+  const factEst = (facturacionEstatus.records || []).map((r: any) => ({ name: r.e, total: r.total || 0, cnt: r.cnt }));
+  const factTotal = factEst.reduce((s: number, f: any) => s + f.total, 0);
+  const factPagada = factEst.find((f: any) => f.name === 'Pagado')?.total || 0;
+  const factPendiente = factEst.filter((f: any) => f.name !== 'Pagado' && f.name !== 'Cancelado').reduce((s: number, f: any) => s + f.total, 0);
+
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const body = `
@@ -1138,8 +1170,19 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     <div class="sub">Tareas + Emails + Llamadas</div>
   </div>
   <div class="kpi">
-    <div class="label">Ejecutivos Activos</div>
-    <div class="value">${actEjec.length}</div>
+    <div class="label">Actividades YTD</div>
+    <div class="value">${tasksTotalYTD.toLocaleString('es-MX')}</div>
+    <div class="sub">${tasksCloseRate.toFixed(0)}% completadas</div>
+  </div>
+  <div class="kpi">
+    <div class="label">$ Facturación Emitida YTD</div>
+    <div class="value">${fmt(factTotal)}</div>
+    <div class="sub" style="color:${COLORS.green}">${fmt(factPagada)} pagadas</div>
+  </div>
+  <div class="kpi">
+    <div class="label">$ Cobranza Pendiente</div>
+    <div class="value" style="color:${COLORS.yellow}">${fmt(factPendiente)}</div>
+    <div class="sub">Por cobrar</div>
   </div>
 </div>
 
@@ -1216,6 +1259,64 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     <div class="chart-wrap"><canvas id="forecastChart"></canvas></div>
   </div>
 </div>
+
+<!-- AUDITORÍA: Histórico ventas + Actividades YTD + Tabla cuentas -->
+<div class="chart-row" style="grid-template-columns:1.3fr 1fr">
+  <div class="chart-card">
+    <h3>Histórico de Ventas (últimos ${histYears.length} años)</h3>
+    <p style="font-size:11px;color:#6b7280;margin-bottom:12px">Comparativo de oportunidades cerradas por año (Ganadas / Perdidas / Canceladas).</p>
+    <div class="chart-wrap" style="height:300px"><canvas id="historicoChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Actividades Creadas por Mes (${year})</h3>
+    <p style="font-size:11px;color:#6b7280;margin-bottom:12px">Tareas + emails + llamadas creadas mensualmente. ${tasksOpen.toLocaleString('es-MX')} abiertas, ${tasksCompleted.toLocaleString('es-MX')} completadas.</p>
+    <div class="chart-wrap" style="height:300px"><canvas id="tasksMonthlyChart"></canvas></div>
+  </div>
+</div>
+
+<div class="table-card">
+  <h3>Auditoría: Top 15 Cuentas por Venta ${year}</h3>
+  <table>
+    <thead><tr><th>Cuenta</th><th style="text-align:right">$ Venta YTD</th><th style="text-align:right"># Opp Ganadas</th><th style="text-align:right">% del total</th></tr></thead>
+    <tbody>
+      ${(() => {
+        const totalAudit = auditTop.reduce((s, a) => s + a.total, 0);
+        return auditTop.map(a => `
+        <tr>
+          <td>${(a.name || '—').toString().replace(/</g, '&lt;')}</td>
+          <td style="text-align:right;font-weight:500">${fmtFull(a.total)}</td>
+          <td style="text-align:right;color:#6B7280">${a.cnt}</td>
+          <td style="text-align:right">${totalAudit > 0 ? ((a.total / totalAudit) * 100).toFixed(1) : 0}%</td>
+        </tr>`).join('');
+      })()}
+    </tbody>
+  </table>
+</div>
+
+<script>
+// Charts auditoría
+const histYears = ${JSON.stringify(histYears)};
+const histGanada = ${JSON.stringify(histGanada)};
+const histPerdida = ${JSON.stringify(histPerdida)};
+const histCancelada = ${JSON.stringify(histCancelada)};
+const tasksMonthly = ${JSON.stringify(tasksMonthly)};
+
+new Chart(document.getElementById('historicoChart'),{
+  type:'bar',
+  data:{labels:histYears,datasets:[
+    {label:'Ganadas',data:histGanada,backgroundColor:'${COLORS.green}',borderRadius:4},
+    {label:'Perdidas',data:histPerdida,backgroundColor:'${COLORS.red}',borderRadius:4},
+    {label:'Canceladas',data:histCancelada,backgroundColor:'${COLORS.gray}',borderRadius:4}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11},boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': $'+(c.parsed.y/1e6).toFixed(2)+'M'}}},scales:{y:{stacked:false,ticks:{callback:v=>'$'+(v/1e6).toFixed(0)+'M',font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{color:'#f0f0f0'}},x:{ticks:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{display:false}}}}
+});
+
+new Chart(document.getElementById('tasksMonthlyChart'),{
+  type:'line',
+  data:{labels:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],datasets:[{label:'# Actividades creadas',data:tasksMonthly,borderColor:'${COLORS.blue}',backgroundColor:'rgba(59,130,246,0.15)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{color:'#f0f0f0'}},x:{ticks:{font:{family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11}},grid:{display:false}}}}
+});
+</script>
 
 <script>
 const meses=${JSON.stringify(MONTHS)};
