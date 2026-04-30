@@ -519,83 +519,373 @@ initCharts();
   };
 }
 
-// ─── Report 2: Ventas y Renovaciones ─────────────────────────────────────────
+// ─── Report 2: Ventas y Renovaciones (réplica de "Ventas" + "Renovaciones") ──
 
 async function generateVentas(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
   const year = now.getFullYear();
+  const lastYear = year - 1;
+  const currentMonth = now.getMonth() + 1;
 
-  const [porTipo, porMesTipo, motivosPerdida] = await Promise.all([
-    query(`SELECT Estatus_anual__c tipo, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY Estatus_anual__c ORDER BY SUM(Amount) DESC`),
-    query(`SELECT CALENDAR_MONTH(CloseDate) mes, Estatus_anual__c tipo, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Ganada!' AND CloseDate = THIS_YEAR AND CurrencyIsoCode = 'MXN' GROUP BY CALENDAR_MONTH(CloseDate), Estatus_anual__c ORDER BY CALENDAR_MONTH(CloseDate)`),
-    query(`SELECT Razon_de__c motivo, COUNT(Id) cnt FROM Opportunity WHERE StageName = 'Perdida' AND CloseDate = THIS_YEAR AND Razon_de__c != null GROUP BY Razon_de__c ORDER BY COUNT(Id) DESC LIMIT 8`),
+  const [
+    porTipoYTD,             // Por Estatus_anual YTD
+    porTipoLY,              // Por Estatus_anual LY (mismo período)
+    porMesTipoYTD,          // Mensual por Estatus
+    porMesTipoLY,           // Mensual LY por Estatus
+    histAnio,               // Histórico ventas 4 años
+    porTipoCuenta,          // Tipo_de_cuenta__c (Activo/Perdido/etc)
+    porRangoEmp,            // Categoría empresa (Rango_de_Colaboradores__c)
+    porLDN,                 // Por LDN
+    motivosPerdida,         // Razones de pérdida YTD
+    motivosPerdidaRenov,    // Razones específicas de renovaciones perdidas
+    oppsCounts,             // Counts globales (Ganadas, Perdidas, Abiertas)
+    cuentasConVenta,        // # cuentas con venta YTD
+    cuentasNuevas,          // # cuentas nuevas YTD
+    renovPorMes,            // Renovaciones por mes (StageName + Estatus_anual='Renovación')
+    renovPorVendedor,       // Renovaciones por vendedor
+    renovPorCategoria,      // Por rango colaboradores
+    topOppsRenovar,         // Top renovaciones abiertas
+  ] = await Promise.all([
+    query(`SELECT Estatus_anual__c t, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Estatus_anual__c t, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c != null GROUP BY Estatus_anual__c`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, Estatus_anual__c t, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate), Estatus_anual__c`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, Estatus_anual__c t, SUM(Amount) total FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=LAST_YEAR AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_MONTH(CloseDate), Estatus_anual__c`),
+    query(`SELECT CALENDAR_YEAR(CloseDate) y, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CurrencyIsoCode='MXN' AND CloseDate >= ${year - 3}-01-01 AND CloseDate <= ${year}-12-31 GROUP BY CALENDAR_YEAR(CloseDate) ORDER BY CALENDAR_YEAR(CloseDate)`),
+    query(`SELECT Account.Tipo_de_cuenta__c t, SUM(Amount) total, COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Tipo_de_cuenta__c != null GROUP BY Account.Tipo_de_cuenta__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Account.Rango_de_Colaboradores__c r, SUM(Amount) total, COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Rango_de_Colaboradores__c != null GROUP BY Account.Rango_de_Colaboradores__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Segm_Neg__c ldn, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Segm_Neg__c != null GROUP BY Segm_Neg__c ORDER BY SUM(Amount) DESC`),
+    query(`SELECT Razon_de__c m, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Perdida' AND CloseDate=THIS_YEAR AND Razon_de__c != null GROUP BY Razon_de__c ORDER BY COUNT(Id) DESC LIMIT 10`),
+    query(`SELECT Razon_de__c m, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName='Perdida' AND CloseDate=THIS_YEAR AND Estatus_anual__c='Renovación' AND Razon_de__c != null GROUP BY Razon_de__c ORDER BY COUNT(Id) DESC LIMIT 10`),
+    query(`SELECT StageName s, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE CurrencyIsoCode='MXN' AND ((CloseDate=THIS_YEAR AND StageName IN ('Ganada!','Perdida','Cancelada')) OR StageName NOT IN ('Ganada!','Perdida','Cancelada')) GROUP BY StageName`),
+    query(`SELECT COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN'`),
+    query(`SELECT COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE StageName='Ganada!' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Estatus_anual__c='Nuevo'`),
+    query(`SELECT CALENDAR_MONTH(CloseDate) mes, StageName s, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE Estatus_anual__c='Renovación' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND StageName IN ('Ganada!','Perdida','Cancelada') GROUP BY CALENDAR_MONTH(CloseDate), StageName ORDER BY CALENDAR_MONTH(CloseDate)`),
+    query(`SELECT OwnerId, StageName s, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE Estatus_anual__c='Renovación' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND StageName IN ('Ganada!','Perdida','Cancelada') AND Amount != null GROUP BY OwnerId, StageName`),
+    query(`SELECT Account.Rango_de_Colaboradores__c r, StageName s, COUNT_DISTINCT(AccountId) cnt FROM Opportunity WHERE Estatus_anual__c='Renovación' AND CloseDate=THIS_YEAR AND CurrencyIsoCode='MXN' AND Account.Rango_de_Colaboradores__c != null AND StageName IN ('Ganada!','Perdida','Cancelada') GROUP BY Account.Rango_de_Colaboradores__c, StageName`),
+    query(`SELECT Id, Name, Account.Name, Amount, StageName, CloseDate, Owner.Name, Sem_foro_de_gesti_n__c, Segm_Neg__c FROM Opportunity WHERE Estatus_anual__c='Renovación' AND StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' AND CloseDate=THIS_YEAR ORDER BY Amount DESC NULLS LAST LIMIT 15`),
   ]);
 
-  const tipoData = (porTipo.records || []).map((r: any) => ({ tipo: r.tipo || 'Sin dato', cnt: r.cnt, total: r.total || 0 }));
-  const totalVentas = tipoData.reduce((s: number, t: any) => s + t.total, 0);
+  function getMonthVal(rec: any): number | null {
+    for (const k of Object.keys(rec)) {
+      if (k === 'attributes' || k === 'total' || k === 'cnt' || k === 't' || k === 's') continue;
+      const v = Number(rec[k]); if (!isNaN(v) && v >= 1 && v <= 12) return v;
+    }
+    return null;
+  }
 
-  // Monthly breakdown by tipo
+  // ── Procesamiento KPIs ventas ──
+  const tipoYTD = (porTipoYTD.records || []).map((r: any) => ({ tipo: r.t, total: r.total || 0, cnt: r.cnt }));
+  const tipoLYData = (porTipoLY.records || []).reduce((acc: any, r: any) => { acc[r.t] = r.total || 0; return acc; }, {} as Record<string, number>);
+  const totalVentas = tipoYTD.reduce((s: number, t: any) => s + t.total, 0);
+  const totalVentasLY = (porTipoLY.records || []).reduce((s: number, r: any) => s + (r.total || 0), 0);
+  // Para % Var LYTD: comparamos contra LY mismo período (Ene-mes actual)
+  const ventasLYsamePeriod = (porMesTipoLY.records || []).reduce((s: number, r: any) => {
+    const m = getMonthVal(r);
+    return (m && m <= currentMonth) ? s + (r.total || 0) : s;
+  }, 0);
+  const pctVarLYTD = ventasLYsamePeriod > 0 ? ((totalVentas - ventasLYsamePeriod) / ventasLYsamePeriod) * 100 : 0;
+
+  // Counts
+  const oppsCountsRecs = (oppsCounts.records || []) as any[];
+  const oppsGanadas = oppsCountsRecs.find((r: any) => r.s === 'Ganada!')?.cnt || 0;
+  const oppsPerdidas = oppsCountsRecs.find((r: any) => r.s === 'Perdida')?.cnt || 0;
+  const oppsAbiertas = oppsCountsRecs.filter((r: any) => !['Ganada!', 'Perdida', 'Cancelada'].includes(r.s)).reduce((s: number, r: any) => s + (r.cnt || 0), 0);
+  const cuentasVtaCnt = cuentasConVenta.records?.[0]?.cnt || 0;
+  const cuentasNuevasCnt = cuentasNuevas.records?.[0]?.cnt || 0;
+
+  // Por mes desglosado
   const monthNuevo = new Array(12).fill(0);
   const monthRenov = new Array(12).fill(0);
   const monthAdic = new Array(12).fill(0);
-  (porMesTipo.records || []).forEach((r: any) => {
-    let monthVal = null;
-    for (const k of Object.keys(r)) {
-      if (k === 'attributes' || k === 'total' || k === 'cnt' || k === 'tipo') continue;
-      const v = Number(r[k]); if (!isNaN(v) && v >= 1 && v <= 12) { monthVal = v; break; }
-    }
-    const idx = (monthVal || 1) - 1;
-    if (r.tipo === 'Nuevo') monthNuevo[idx] = r.total || 0;
-    else if (r.tipo === 'Renovación') monthRenov[idx] = r.total || 0;
+  (porMesTipoYTD.records || []).forEach((r: any) => {
+    const m = getMonthVal(r);
+    if (!m) return;
+    const idx = m - 1;
+    if (r.t === 'Nuevo') monthNuevo[idx] = r.total || 0;
+    else if (r.t === 'Renovación') monthRenov[idx] = r.total || 0;
     else monthAdic[idx] = r.total || 0;
   });
 
-  // Tasa renovacion por mes
-  const tasaRenov = monthRenov.map((r, i) => {
-    const total = r + monthNuevo[i] + monthAdic[i];
-    return total > 0 ? Math.round((r / total) * 100) : 0;
+  // Acumulado YTD vs LY (para area chart)
+  const monthTotalYTD = monthNuevo.map((v, i) => v + monthRenov[i] + monthAdic[i]);
+  const monthTotalLY = new Array(12).fill(0);
+  (porMesTipoLY.records || []).forEach((r: any) => {
+    const m = getMonthVal(r);
+    if (m) monthTotalLY[m - 1] += r.total || 0;
+  });
+  const acumYTD: number[] = [];
+  const acumLY: number[] = [];
+  let aYTD = 0, aLY = 0;
+  for (let i = 0; i < 12; i++) {
+    aYTD += monthTotalYTD[i];
+    aLY += monthTotalLY[i];
+    acumYTD.push(aYTD);
+    acumLY.push(aLY);
+  }
+
+  // Histórico anual
+  const histRecs = (histAnio.records || []) as any[];
+  const histYears: number[] = histRecs.map((r: any) => r.y).filter((y: any) => y);
+  const histTotals = histRecs.map((r: any) => r.total || 0);
+
+  // Tipo cuenta / categoria emp / LDN
+  const tipoCuentaData = (porTipoCuenta.records || []).map((r: any) => ({ name: r.t, total: r.total || 0, cnt: r.cnt }));
+  const rangoEmpData = (porRangoEmp.records || []).map((r: any) => ({ name: r.r, total: r.total || 0, cnt: r.cnt }));
+  const ldnData = (porLDN.records || []).map((r: any) => ({ name: r.ldn, total: r.total || 0, cnt: r.cnt }));
+
+  // Motivos pérdida
+  const motivos = (motivosPerdida.records || []).map((r: any) => ({ name: r.m, cnt: r.cnt, total: r.total || 0 }));
+  const motivosRenov = (motivosPerdidaRenov.records || []).map((r: any) => ({ name: r.m, cnt: r.cnt, total: r.total || 0 }));
+
+  // ── Renovaciones procesamiento ──
+  // Por mes: a renovar = Ganada+Perdida+Cancelada (todo lo que ya cerró), renovada = Ganada
+  const renovMesAR = new Array(12).fill(0);    // a renovar ($)
+  const renovMesRen = new Array(12).fill(0);   // renovada ($)
+  const renovMesPerd = new Array(12).fill(0);  // perdida ($)
+  const renovMesCntAR = new Array(12).fill(0);
+  const renovMesCntRen = new Array(12).fill(0);
+  (renovPorMes.records || []).forEach((r: any) => {
+    const m = getMonthVal(r);
+    if (!m) return;
+    const idx = m - 1;
+    const t = r.total || 0;
+    const c = r.cnt || 0;
+    renovMesAR[idx] += t;
+    renovMesCntAR[idx] += c;
+    if (r.s === 'Ganada!') {
+      renovMesRen[idx] = t;
+      renovMesCntRen[idx] = c;
+    } else if (r.s === 'Perdida') {
+      renovMesPerd[idx] = t;
+    }
+  });
+  const tasaRenovMes = renovMesCntAR.map((ar, i) => ar > 0 ? Math.round((renovMesCntRen[i] / ar) * 100) : 0);
+
+  const totalARenovar = renovMesAR.reduce((a, b) => a + b, 0);
+  const totalRenovado = renovMesRen.reduce((a, b) => a + b, 0);
+  const totalPerdRenov = renovMesPerd.reduce((a, b) => a + b, 0);
+  const tasaRenovTotal = totalARenovar > 0 ? (totalRenovado / totalARenovar) * 100 : 0;
+  const cntRenovPerdida = renovMesCntAR.reduce((s, ar, i) => s + (ar - renovMesCntRen[i]), 0);
+
+  // Por vendedor
+  const renovEjec = new Map<string, { ganada: number; perdida: number; cntG: number; cntP: number }>();
+  (renovPorVendedor.records || []).forEach((r: any) => {
+    if (!renovEjec.has(r.OwnerId)) renovEjec.set(r.OwnerId, { ganada: 0, perdida: 0, cntG: 0, cntP: 0 });
+    const e = renovEjec.get(r.OwnerId)!;
+    if (r.s === 'Ganada!') { e.ganada = r.total || 0; e.cntG = r.cnt || 0; }
+    else { e.perdida += r.total || 0; e.cntP += r.cnt || 0; }
   });
 
-  const motivosData = (motivosPerdida.records || []).map((r: any) => ({ motivo: r.motivo, cnt: r.cnt }));
+  // User names
+  const userNames = new Map<string, string>();
+  try {
+    const allUsers = await query(`SELECT Id, Name FROM User WHERE IsActive = true LIMIT 200`);
+    (allUsers.records || []).forEach((u: any) => userNames.set(u.Id, u.Name));
+  } catch (e: any) { process.stderr.write(`[reports] User query failed: ${e.message}\n`); }
+
+  const renovEjecArr = Array.from(renovEjec.entries()).map(([id, e]) => {
+    const total = e.ganada + e.perdida;
+    return {
+      name: userNames.get(id) || 'Sin nombre',
+      ganada: e.ganada, perdida: e.perdida,
+      cntG: e.cntG, cntP: e.cntP,
+      tasa: total > 0 ? (e.ganada / total) * 100 : 0,
+    };
+  })
+    .filter(r => r.cntG + r.cntP > 0)
+    .sort((a, b) => b.tasa - a.tasa)
+    .slice(0, 12);
+
+  // Por Categoría Empresa renovaciones
+  const renovCat = new Map<string, { ganada: number; total: number }>();
+  (renovPorCategoria.records || []).forEach((r: any) => {
+    if (!renovCat.has(r.r)) renovCat.set(r.r, { ganada: 0, total: 0 });
+    const e = renovCat.get(r.r)!;
+    e.total += r.cnt || 0;
+    if (r.s === 'Ganada!') e.ganada = r.cnt || 0;
+  });
+  const renovCatArr = Array.from(renovCat.entries()).map(([name, e]) => ({
+    name, ganada: e.ganada, total: e.total,
+    tasa: e.total > 0 ? (e.ganada / e.total) * 100 : 0,
+  })).sort((a, b) => b.total - a.total);
+
+  // Top oportunidades a renovar
+  const topRenovar = (topOppsRenovar.records || []).map((r: any) => ({
+    id: r.Id,
+    name: r.Name,
+    acct: r.Account?.Name || '—',
+    amount: r.Amount || 0,
+    stage: r.StageName,
+    close: r.CloseDate || '—',
+    owner: r.Owner?.Name || '—',
+    sem: r.Sem_foro_de_gesti_n__c || '—',
+    ldn: r.Segm_Neg__c || '—',
+  }));
 
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const semTagClass = (s: string) => s === 'Verde' ? 'tag-green' : s === 'Amarillo' ? 'tag-yellow' : s === 'Rojo' ? 'tag-red' : 'tag-blue';
 
   const body = `
+<!-- ===== SECCIÓN VENTAS ===== -->
+<h2 style="font-size:18px;font-weight:700;color:${COLORS.dark};margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid ${COLORS.red}">Ventas YTD</h2>
+
 <div class="kpi-row">
-  ${tipoData.map((t: any) => `
-  <div class="kpi">
-    <div class="label">${t.tipo}</div>
-    <div class="value">${fmtFull(t.total)}</div>
-    <div class="sub">${t.cnt} opps | ${pct(t.total, totalVentas)} del total</div>
-  </div>`).join('')}
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Venta YTD</div>
+    <div class="value">${fmtFull(totalVentas)}</div>
+    <div class="sub" style="color:${pctVarLYTD >= 0 ? COLORS.green : COLORS.red}">${pctVarLYTD >= 0 ? '+' : ''}${pctVarLYTD.toFixed(1)}% vs ${lastYear} mismo período</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.gray}">
+    <div class="label">$ Venta ${lastYear} (mismo per.)</div>
+    <div class="value">${fmtFull(ventasLYsamePeriod)}</div>
+    <div class="sub">Total año ${lastYear}: ${fmt(totalVentasLY)}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label"># Cuentas con Ventas</div>
+    <div class="value">${cuentasVtaCnt}</div>
+    <div class="sub">${cuentasNuevasCnt} nuevas (${pct(cuentasNuevasCnt, cuentasVtaCnt)})</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.blue}">
+    <div class="label"># Opp Ganadas</div>
+    <div class="value" style="color:${COLORS.green}">${oppsGanadas}</div>
+    <div class="sub">vs ${oppsPerdidas} perdidas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+    <div class="label"># Opp Abiertas</div>
+    <div class="value" style="color:${COLORS.yellow}">${oppsAbiertas}</div>
+    <div class="sub">en pipeline</div>
+  </div>
+  ${tipoYTD.map(t => {
+    const lyVal = tipoLYData[t.tipo] || 0;
+    const variation = lyVal > 0 ? ((t.total - lyVal) / lyVal) * 100 : 0;
+    const colorMap: Record<string, string> = { 'Nuevo': COLORS.blue, 'Renovación': COLORS.green, 'Adicional': COLORS.yellow };
+    return `
+  <div class="kpi" style="border-top:3px solid ${colorMap[t.tipo] || COLORS.gray}">
+    <div class="label">$ Venta ${t.tipo}</div>
+    <div class="value">${fmt(t.total)}</div>
+    <div class="sub" style="color:${variation >= 0 ? COLORS.green : COLORS.red}">${variation >= 0 ? '+' : ''}${variation.toFixed(0)}% vs ${lastYear} (${t.cnt} opps)</div>
+  </div>`;
+  }).join('')}
 </div>
 
-<div class="chart-row">
+<!-- ROW 1: Ventas mensuales por tipo (stacked) + Acumulado vs LY -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
   <div class="chart-card">
-    <h3>Ventas Mensuales por Tipo</h3>
-    <div class="chart-wrap"><canvas id="ventasTipoChart"></canvas></div>
+    <h3>Ventas Mensuales por Tipo (Estatus Anual)</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="ventasTipoChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <h3>Tasa de Renovacion Mensual (%)</h3>
-    <div class="chart-wrap"><canvas id="tasaChart"></canvas></div>
+    <h3>Venta Acumulada YTD vs ${lastYear}</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="acumChart"></canvas></div>
   </div>
 </div>
 
-<div class="chart-row">
+<!-- ROW 2: Histórico anual + Tipo de Cuenta + LDN -->
+<div class="chart-row" style="grid-template-columns:1.2fr 1fr 1fr">
   <div class="chart-card">
-    <h3>Motivos de Perdida (${year})</h3>
-    <div class="chart-wrap"><canvas id="motivosChart"></canvas></div>
+    <h3>Histórico de Ventas (${histYears.length} años)</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="histChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <h3>Composicion por Tipo de Venta</h3>
-    <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+    <h3>$ Venta por Tipo de Cuenta</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="tipoCuentaChart"></canvas></div>
   </div>
+  <div class="chart-card">
+    <h3>$ Venta por LDN</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="ldnChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Categoría empresa + Motivos pérdida -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3># Cuentas con Venta por Categoría Empresa</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="rangoChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Top Motivos de Pérdida (todas las opps)</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="motivosChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ===== SECCIÓN RENOVACIONES ===== -->
+<h2 style="font-size:18px;font-weight:700;color:${COLORS.dark};margin-top:32px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid ${COLORS.green}">Renovaciones ${year}</h2>
+
+<div class="kpi-row">
+  <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
+    <div class="label">$ Suscripción a Renovar</div>
+    <div class="value">${fmtFull(totalARenovar)}</div>
+    <div class="sub">${renovMesCntAR.reduce((a, b) => a + b, 0)} cuentas evaluadas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label">$ Renovado</div>
+    <div class="value" style="color:${COLORS.green}">${fmtFull(totalRenovado)}</div>
+    <div class="sub">${renovMesCntRen.reduce((a, b) => a + b, 0)} cuentas renovadas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Renovaciones Perdidas</div>
+    <div class="value" style="color:${COLORS.red}">${fmtFull(totalPerdRenov)}</div>
+    <div class="sub">${cntRenovPerdida} cuentas no renovaron</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${tasaRenovTotal >= 70 ? COLORS.green : tasaRenovTotal >= 50 ? COLORS.yellow : COLORS.red}">
+    <div class="label">% Tasa de Renovación</div>
+    <div class="value" style="color:${tasaRenovTotal >= 70 ? COLORS.green : tasaRenovTotal >= 50 ? COLORS.yellow : COLORS.red}">${tasaRenovTotal.toFixed(1)}%</div>
+    <div class="sub">por valor</div>
+  </div>
+</div>
+
+<!-- ROW Renov 1: Tasa por mes + Tasa por vendedor -->
+<div class="chart-row" style="grid-template-columns:1.2fr 1.5fr">
+  <div class="chart-card">
+    <h3>% Tasa de Renovación por Mes</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="tasaMesChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>% Tasa de Renovación por Vendedor</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="tasaEjecChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW Renov 2: Por categoría empresa + Razones pérdida renovaciones -->
+<div class="chart-row" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card">
+    <h3>Renovaciones por Categoría Empresa</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="renovCatChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Razones de Pérdida en Renovaciones</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="motivosRenovChart"></canvas></div>
+  </div>
+</div>
+
+<!-- TABLA: Top renovaciones abiertas -->
+<div class="table-card">
+  <h3>Top 15 Renovaciones Abiertas (en juego ${year})</h3>
+  <table>
+    <thead><tr><th>Oportunidad</th><th>Cuenta</th><th>Etapa</th><th>LDN</th><th>Semáforo</th><th style="text-align:right">Monto</th><th>CloseDate</th><th>Ejecutivo</th></tr></thead>
+    <tbody>
+      ${topRenovar.map(r => `
+      <tr>
+        <td><strong>${r.name.replace(/</g, '&lt;')}</strong></td>
+        <td>${r.acct.replace(/</g, '&lt;')}</td>
+        <td>${r.stage}</td>
+        <td>${r.ldn}</td>
+        <td><span class="tag ${semTagClass(r.sem)}">${r.sem}</span></td>
+        <td style="text-align:right;font-weight:500">${fmtFull(r.amount)}</td>
+        <td>${r.close}</td>
+        <td>${r.owner}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
 </div>
 
 <script>
-const meses=${JSON.stringify(MONTHS)};
-const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
 
+// 1. Ventas mensuales por tipo (stacked bar)
 new Chart(document.getElementById('ventasTipoChart'),{
   type:'bar',
   data:{labels:meses,datasets:[
@@ -603,25 +893,90 @@ new Chart(document.getElementById('ventasTipoChart'),{
     {label:'Renovación',data:${JSON.stringify(monthRenov)},backgroundColor:'${COLORS.green}',borderRadius:3},
     {label:'Adicional',data:${JSON.stringify(monthAdic)},backgroundColor:'${COLORS.yellow}',borderRadius:3}
   ]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}}},scales:{y:{stacked:true,ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef}},x:{stacked:true,ticks:{font:fontDef}}}}
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{stacked:true,ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{stacked:true,ticks:{font:fontDef}}}}
 });
 
-new Chart(document.getElementById('tasaChart'),{
+// 2. Acumulado vs LY
+new Chart(document.getElementById('acumChart'),{
   type:'line',
-  data:{labels:meses,datasets:[{label:'% Renovacion',data:${JSON.stringify(tasaRenov)},borderColor:'${COLORS.green}',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:4,pointBackgroundColor:'${COLORS.green}'}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:fontDef}},x:{ticks:{font:fontDef}}}}
+  data:{labels:meses,datasets:[
+    {label:'${year}',data:${JSON.stringify(acumYTD)},borderColor:'${COLORS.red}',backgroundColor:'rgba(255,22,40,0.1)',fill:true,tension:0.4,borderWidth:2.5,pointRadius:3},
+    {label:'${lastYear}',data:${JSON.stringify(acumLY)},borderColor:'${COLORS.gray}',borderDash:[5,5],fill:false,tension:0.4,borderWidth:2,pointRadius:2}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
 });
 
+// 3. Histórico anual
+new Chart(document.getElementById('histChart'),{
+  type:'bar',
+  data:{labels:${JSON.stringify(histYears)},datasets:[{data:${JSON.stringify(histTotals)},backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
+});
+
+// 4. Tipo de cuenta donut
+const tipoCuentaData = ${JSON.stringify(tipoCuentaData)};
+new Chart(document.getElementById('tipoCuentaChart'),{
+  type:'doughnut',
+  data:{labels:tipoCuentaData.map(d=>d.name),datasets:[{data:tipoCuentaData.map(d=>d.total),backgroundColor:['${COLORS.green}','${COLORS.red}','${COLORS.blue}','#8B5CF6','${COLORS.gray}']}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)+' ('+tipoCuentaData[c.dataIndex].cnt+' cuentas)'}}}}
+});
+
+// 5. LDN donut
+const ldnData = ${JSON.stringify(ldnData)};
+new Chart(document.getElementById('ldnChart'),{
+  type:'doughnut',
+  data:{labels:ldnData.map(d=>d.name),datasets:[{data:ldnData.map(d=>d.total),backgroundColor:['${COLORS.red}','${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.gray}','#8B5CF6']}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}
+});
+
+// 6. Categoría empresa
+const rangoEmpData = ${JSON.stringify(rangoEmpData)};
+new Chart(document.getElementById('rangoChart'),{
+  type:'bar',
+  data:{labels:rangoEmpData.map(d=>d.name),datasets:[{data:rangoEmpData.map(d=>d.cnt),backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' cuentas | '+fmt(rangoEmpData[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 7. Motivos pérdida
+const motivos = ${JSON.stringify(motivos)};
 new Chart(document.getElementById('motivosChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(motivosData.map((m: any) => m.motivo))},datasets:[{data:${JSON.stringify(motivosData.map((m: any) => m.cnt))},backgroundColor:'${COLORS.red}',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:fontDef}},y:{ticks:{font:{...fontDef,size:10}}}}}
+  data:{labels:motivos.map(m=>m.name),datasets:[{data:motivos.map(m=>m.cnt),backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' opps | '+fmt(motivos[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
 });
 
-new Chart(document.getElementById('pieChart'),{
-  type:'doughnut',
-  data:{labels:${JSON.stringify(tipoData.map((t: any) => t.tipo))},datasets:[{data:${JSON.stringify(tipoData.map((t: any) => t.total))},backgroundColor:['${COLORS.blue}','${COLORS.green}','${COLORS.yellow}','${COLORS.gray}']}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:fontDef,boxWidth:10}}}}
+// 8. Tasa renov por mes
+new Chart(document.getElementById('tasaMesChart'),{
+  type:'bar',
+  data:{labels:meses,datasets:[{label:'% Renovado',data:${JSON.stringify(tasaRenovMes)},backgroundColor:${JSON.stringify(tasaRenovMes.map(t => t >= 70 ? COLORS.green : t >= 50 ? COLORS.yellow : t > 0 ? COLORS.red : COLORS.gray))},borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'%'}}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
+});
+
+// 9. Tasa renov por ejecutivo
+const renovEjecArr = ${JSON.stringify(renovEjecArr)};
+new Chart(document.getElementById('tasaEjecChart'),{
+  type:'bar',
+  data:{labels:renovEjecArr.map(d=>d.name.split(' ').slice(0,2).join(' ')),datasets:[{data:renovEjecArr.map(d=>d.tasa),backgroundColor:renovEjecArr.map(d=>d.tasa>=70?'${COLORS.green}':d.tasa>=50?'${COLORS.yellow}':'${COLORS.red}'),borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(1)+'% | '+renovEjecArr[c.dataIndex].cntG+' ren. de '+(renovEjecArr[c.dataIndex].cntG+renovEjecArr[c.dataIndex].cntP)}}},scales:{x:{min:0,max:100,ticks:{callback:v=>v+'%',font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 10. Renov por categoría
+const renovCatArr = ${JSON.stringify(renovCatArr)};
+new Chart(document.getElementById('renovCatChart'),{
+  type:'bar',
+  data:{labels:renovCatArr.map(d=>d.name),datasets:[
+    {label:'Renovadas',data:renovCatArr.map(d=>d.ganada),backgroundColor:'${COLORS.green}',borderRadius:3,stack:'a'},
+    {label:'Perdidas',data:renovCatArr.map(d=>d.total-d.ganada),backgroundColor:'${COLORS.red}',borderRadius:3,stack:'a'}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+' cuentas'}}},scales:{y:{stacked:true,ticks:{font:fontDef},grid:{color:'#f0f0f0'}},x:{stacked:true,ticks:{font:fontSm}}}}
+});
+
+// 11. Motivos renov perdidas
+const motivosRenov = ${JSON.stringify(motivosRenov)};
+new Chart(document.getElementById('motivosRenovChart'),{
+  type:'bar',
+  data:{labels:motivosRenov.map(m=>m.name),datasets:[{data:motivosRenov.map(m=>m.cnt),backgroundColor:'${COLORS.red}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' renov. | '+fmt(motivosRenov[c.dataIndex].total)}}},scales:{x:{ticks:{font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
 });
 </script>`;
 
@@ -631,7 +986,7 @@ new Chart(document.getElementById('pieChart'),{
     icon: '&#128176;',
     html: dashboardShell(`Ventas y Renovaciones - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `Total: ${fmt(totalVentas)} | Nuevo: ${fmt(tipoData.find((t: any) => t.tipo === 'Nuevo')?.total || 0)} | Renovacion: ${fmt(tipoData.find((t: any) => t.tipo === 'Renovación')?.total || 0)}`,
+    summary: `Venta YTD: ${fmt(totalVentas)} (${pctVarLYTD >= 0 ? '+' : ''}${pctVarLYTD.toFixed(0)}% vs ${lastYear}) | Renovado: ${fmt(totalRenovado)} (${tasaRenovTotal.toFixed(0)}% tasa) | ${cuentasNuevasCnt} new logos`,
   };
 }
 
