@@ -1041,7 +1041,7 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
   });
 
   // Build correlation dataset
-  const correlationData = Array.from(new Set([...meetingsMap.keys(), ...salesMap.keys()]))
+  const correlationData = Array.from(new Set([...meetingsMap.keys(), ...salesMap.keys(), ...winRateMap.keys()]))
     .map(ownerId => {
       const name = userNames.get(ownerId) || ownerId;
       const meetings = meetingsMap.get(ownerId) || 0;
@@ -1050,7 +1050,18 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
       const winRate = wr.ganadas + wr.perdidas > 0 ? Math.round((wr.ganadas / (wr.ganadas + wr.perdidas)) * 100) : 0;
       const efficiency = meetings > 0 ? Math.round(sales.total / meetings) : 0; // $ per meeting
       const ratio = sales.cnt > 0 ? +(meetings / sales.cnt).toFixed(1) : 0; // meetings per deal
-      return { name: name.split(' ').slice(0, 2).join(' '), fullName: name, meetings, deals: sales.cnt, revenue: sales.total, winRate, efficiency, ratio };
+      return {
+        name: name.split(' ').slice(0, 2).join(' '),
+        fullName: name,
+        meetings,
+        deals: sales.cnt,
+        revenue: sales.total,
+        ganadas: wr.ganadas,
+        perdidas: wr.perdidas,
+        winRate,
+        efficiency,
+        ratio,
+      };
     })
     .filter(d => d.meetings > 0 || d.deals > 0)
     .sort((a, b) => b.revenue - a.revenue);
@@ -1106,9 +1117,9 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
   }));
   const totalAct = actEjec.reduce((s: number, a: any) => s + a.cnt, 0);
 
-  // Win rate table data with visual bars
+  // Win rate table data with visual bars (solo ejecutivos con cierres reales)
   const winRateTable = correlationData
-    .filter(d => d.winRate > 0 || d.deals > 0)
+    .filter(d => d.ganadas + d.perdidas > 0)
     .sort((a, b) => b.winRate - a.winRate)
     .slice(0, 12);
 
@@ -1244,8 +1255,8 @@ async function generateComercial(query: QueryFn): Promise<ReportCache> {
     <tr><th>Ejecutivo</th><th>Ganadas</th><th>Perdidas</th><th>Win Rate</th><th></th></tr>
     ${winRateTable.map((d: any) => `<tr>
       <td>${d.name}</td>
-      <td style="color:${COLORS.green}">${d.deals}</td>
-      <td style="color:${COLORS.red}">${(winRateMap.get(Array.from(ownerIds).find(id => userNames.get(id)?.startsWith(d.fullName?.split(' ')[0] || '---')) || '') || { perdidas: 0 }).perdidas}</td>
+      <td style="color:${COLORS.green}">${d.ganadas}</td>
+      <td style="color:${COLORS.red}">${d.perdidas}</td>
       <td><strong>${d.winRate}%</strong></td>
       <td><div style="background:#e5e7eb;border-radius:4px;height:8px;width:120px"><div style="background:${d.winRate >= 50 ? COLORS.green : COLORS.red};height:8px;border-radius:4px;width:${Math.min(d.winRate, 100)}%"></div></div></td>
     </tr>`).join('')}
