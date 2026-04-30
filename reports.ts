@@ -667,7 +667,7 @@ async function generatePipeline(query: QueryFn): Promise<ReportCache> {
     query(`SELECT CALENDAR_YEAR(CloseDate) y, CALENDAR_MONTH(CloseDate) mes, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY CALENDAR_YEAR(CloseDate), CALENDAR_MONTH(CloseDate) ORDER BY CALENDAR_YEAR(CloseDate), CALENDAR_MONTH(CloseDate)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate=THIS_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
     query(`SELECT CALENDAR_MONTH(CreatedDate) mes, COUNT(Id) cnt FROM Opportunity WHERE CreatedDate=LAST_YEAR GROUP BY CALENDAR_MONTH(CreatedDate)`),
-    query(`SELECT Id, Name, Account.Name a, Amount, StageName, Probability, CloseDate, Owner.Name o, Sem_foro_de_gesti_n__c sem, Segm_Neg__c ldn, Estatus_anual__c et FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' ORDER BY Amount DESC NULLS LAST LIMIT 20`),
+    query(`SELECT Id, Name, Account.Name, Amount, StageName, Probability, CloseDate, Owner.Name, Sem_foro_de_gesti_n__c, Segm_Neg__c, Estatus_anual__c FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' ORDER BY Amount DESC NULLS LAST LIMIT 20`),
     query(`SELECT Owner.Name v, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY Owner.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Account.Name a, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE StageName NOT IN ('Ganada!','Perdida','Cancelada') AND CurrencyIsoCode='MXN' GROUP BY Account.Name ORDER BY SUM(Amount) DESC LIMIT 10`),
     query(`SELECT Razon_de__c motivo, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity WHERE StageName='Perdida' AND CloseDate=THIS_YEAR AND Razon_de__c != null GROUP BY Razon_de__c ORDER BY COUNT(Id) DESC LIMIT 10`),
@@ -738,9 +738,10 @@ async function generatePipeline(query: QueryFn): Promise<ReportCache> {
   const motivos = (motivosPerdida.records || []).map((r: any) => ({ name: r.motivo, total: r.total || 0, cnt: r.cnt }));
 
   const detalleTop = detalleAbiertas.map((r: any) => ({
-    id: r.Id, name: r.Name, acct: r.a || '—', amount: r.Amount || 0,
+    id: r.Id, name: r.Name, acct: r.Account?.Name || '—', amount: r.Amount || 0,
     stage: r.StageName, prob: r.Probability || 0, close: r.CloseDate || '—',
-    owner: r.o || '—', sem: r.sem || '—', ldn: r.ldn || '—', estatus: r.et || '—'
+    owner: r.Owner?.Name || '—', sem: r.Sem_foro_de_gesti_n__c || '—',
+    ldn: r.Segm_Neg__c || '—', estatus: r.Estatus_anual__c || '—'
   }));
 
   const semColors: Record<string, string> = { Verde: COLORS.green, Amarillo: COLORS.yellow, Rojo: COLORS.red, Azul: COLORS.blue };
