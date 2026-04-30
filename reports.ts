@@ -1793,77 +1793,292 @@ new Chart(document.getElementById('ldnMetaChart'),{
   };
 }
 
-// ─── Report 6: Cobranza ──────────────────────────────────────────────────────
+// ─── Report 6: Cobranza (réplica de "Facturación" del PBI) ──────────────────
 
 async function generateCobranza(query: QueryFn): Promise<ReportCache> {
   const now = new Date();
+  const year = now.getFullYear();
+  const lastYear = year - 1;
 
-  const [porEstatus, porPolitica, topPendientes] = await Promise.all([
-    query(`SELECT Estatus_de__c estatus, COUNT(Id) cnt, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','Enviado','En Proceso de Pago','Programado','Solicitado') GROUP BY Estatus_de__c ORDER BY SUM(Importe_MXN__c) DESC`),
-    query(`SELECT Pol_tica_de_Pago__c politica, COUNT(Id) cnt, SUM(Importe_MXN__c) total FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Pol_tica_de_Pago__c != null GROUP BY Pol_tica_de_Pago__c ORDER BY SUM(Importe_MXN__c) DESC`),
-    query(`SELECT Name, Raz_n_Social__c acct, Importe_MXN__c total, Estatus_de__c estatus, Fecha_de_Emisi_n__c emision, Pol_tica_de_Pago__c politica FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','Enviado','En Proceso de Pago','Solicitado') ORDER BY Importe_MXN__c DESC NULLS LAST LIMIT 15`),
+  const [
+    estatusYTD,           // $ por estatus YTD
+    estatusLY,            // $ por estatus LY
+    porMesYTD,            // Facturado y cobrado por mes YTD
+    politicaPagoYTD,      // Por política de pago (pendiente)
+    facturacionAntigua,   // Facturación antigua aún pendiente
+    topPendientes,        // Top 15 facturas pendientes
+    topCuentasSaldo,      // Top cuentas con mayor saldo pendiente
+    porUsoCFDI,           // Por uso de CFDI
+    porCondiciones,       // Crédito vs Contado
+  ] = await Promise.all([
+    query(`SELECT Estatus_de__c e, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 GROUP BY Estatus_de__c ORDER BY SUM(Importe_MXN__c) DESC`),
+    query(`SELECT Estatus_de__c e, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=LAST_YEAR AND Importe_MXN__c > 0 GROUP BY Estatus_de__c`),
+    query(`SELECT CALENDAR_MONTH(Fecha_de_Emisi_n__c) mes, Estatus_de__c e, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 GROUP BY CALENDAR_MONTH(Fecha_de_Emisi_n__c), Estatus_de__c`),
+    query(`SELECT Pol_tica_de_Pago__c p, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 AND Pol_tica_de_Pago__c != null GROUP BY Pol_tica_de_Pago__c ORDER BY SUM(Importe_MXN__c) DESC`),
+    query(`SELECT SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c < ${year}-01-01 AND Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0`),
+    query(`SELECT Id, Name, Account.Name, Importe_MXN__c, Estatus_de__c, Fecha_de_Emisi_n__c, Pol_tica_de_Pago__c, Fecha_de_Pago__c FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 ORDER BY Importe_MXN__c DESC NULLS LAST LIMIT 20`),
+    query(`SELECT Account.Name a, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Estatus_de__c IN ('Emitido','En Proceso de Pago') AND Importe_MXN__c > 0 GROUP BY Account.Name ORDER BY SUM(Importe_MXN__c) DESC NULLS LAST LIMIT 10`),
+    query(`SELECT Uso_de_CFDI__c u, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND Uso_de_CFDI__c != null GROUP BY Uso_de_CFDI__c ORDER BY SUM(Importe_MXN__c) DESC`),
+    query(`SELECT Condiciones__c c, SUM(Importe_MXN__c) total, COUNT(Id) cnt FROM Invoice__c WHERE Fecha_de_Emisi_n__c=THIS_YEAR AND Importe_MXN__c > 0 AND Condiciones__c != null GROUP BY Condiciones__c`),
   ]);
 
-  const estatusData = (porEstatus.records || []).map((r: any) => ({ estatus: r.estatus, cnt: r.cnt, total: r.total || 0 }));
-  const totalPendiente = estatusData.reduce((s: number, e: any) => s + e.total, 0);
-  const totalFacturas = estatusData.reduce((s: number, e: any) => s + e.cnt, 0);
+  function getMonthVal(rec: any): number | null {
+    for (const k of Object.keys(rec)) {
+      if (k === 'attributes' || k === 'total' || k === 'cnt' || k === 'e') continue;
+      const v = Number(rec[k]); if (!isNaN(v) && v >= 1 && v <= 12) return v;
+    }
+    return null;
+  }
 
-  const politicaData = (porPolitica.records || []).map((r: any) => ({ politica: r.politica, cnt: r.cnt, total: r.total || 0 }));
+  // ── Estatus YTD ──
+  const estData = (estatusYTD.records || []).map((r: any) => ({ name: r.e, total: r.total || 0, cnt: r.cnt }));
+  const facturadoYTD = estData.reduce((s: number, e: any) => s + e.total, 0);
+  const pagadoYTD = estData.find((e: any) => e.name === 'Pagado')?.total || 0;
+  const enProceso = estData.find((e: any) => e.name === 'En Proceso de Pago')?.total || 0;
+  const emitido = estData.find((e: any) => e.name === 'Emitido')?.total || 0;
+  const cancelado = estData.find((e: any) => e.name === 'Cancelado')?.total || 0;
+  const pendienteYTD = enProceso + emitido;
+  const pctCobrado = facturadoYTD > 0 ? (pagadoYTD / facturadoYTD) * 100 : 0;
 
-  const pendientes = (topPendientes.records || []).map((r: any) => ({
-    name: r.Name, acct: r.acct, total: r.total || 0, estatus: r.estatus, emision: r.emision, politica: r.politica
-  }));
+  // Comparativo LY
+  const facturadoLY = (estatusLY.records || []).reduce((s: number, r: any) => s + (r.total || 0), 0);
+  const pagadoLYRecs = (estatusLY.records || []) as any[];
+  const pagadoLY = pagadoLYRecs.find((r: any) => r.e === 'Pagado')?.total || 0;
+  const pctVarFact = facturadoLY > 0 ? ((facturadoYTD - facturadoLY) / facturadoLY) * 100 : 0;
+  const pctVarCobro = pagadoLY > 0 ? ((pagadoYTD - pagadoLY) / pagadoLY) * 100 : 0;
+
+  // Facturación antigua
+  const factAntigua = facturacionAntigua.records?.[0]?.total || 0;
+  const factAntiguaCnt = facturacionAntigua.records?.[0]?.cnt || 0;
+
+  // ── Por mes (split por estatus) ──
+  const factEmitidoMes = new Array(12).fill(0);
+  const factPagadoMes = new Array(12).fill(0);
+  const factCanceladoMes = new Array(12).fill(0);
+  (porMesYTD.records || []).forEach((r: any) => {
+    const m = getMonthVal(r);
+    if (!m) return;
+    const total = r.total || 0;
+    if (r.e === 'Pagado') factPagadoMes[m - 1] += total;
+    else if (r.e === 'Cancelado') factCanceladoMes[m - 1] += total;
+    else factEmitidoMes[m - 1] += total;
+  });
+  const factTotalMes = factEmitidoMes.map((v, i) => v + factPagadoMes[i]);
+
+  // ── Política de pago ──
+  const politicas = (politicaPagoYTD.records || []).map((r: any) => ({ name: r.p, total: r.total || 0, cnt: r.cnt }));
+
+  // ── Uso CFDI ──
+  const usoCFDI = (porUsoCFDI.records || []).map((r: any) => ({ name: r.u, total: r.total || 0, cnt: r.cnt }));
+
+  // ── Condiciones ──
+  const condiciones = (porCondiciones.records || []).map((r: any) => ({ name: r.c, total: r.total || 0, cnt: r.cnt }));
+
+  // ── Top pendientes con cálculo de antigüedad (días) ──
+  const today = now.getTime();
+  const topPend = (topPendientes.records || []).map((r: any) => {
+    const emisionDate = r.Fecha_de_Emisi_n__c ? new Date(r.Fecha_de_Emisi_n__c).getTime() : 0;
+    const dias = emisionDate ? Math.floor((today - emisionDate) / 86400000) : 0;
+    return {
+      id: r.Id,
+      name: r.Name,
+      acct: r.Account?.Name || '—',
+      total: r.Importe_MXN__c || 0,
+      estatus: r.Estatus_de__c,
+      emision: r.Fecha_de_Emisi_n__c || '—',
+      politica: r.Pol_tica_de_Pago__c || '—',
+      pago: r.Fecha_de_Pago__c || '—',
+      dias,
+    };
+  });
+
+  // ── Top cuentas con saldo ──
+  const topAcc = (topCuentasSaldo.records || []).map((r: any) => ({ name: r.a || '—', total: r.total || 0, cnt: r.cnt }));
+
+  // ── Antigüedad de saldos (buckets) ──
+  const buckets = { '0-30': { total: 0, cnt: 0 }, '31-60': { total: 0, cnt: 0 }, '61-90': { total: 0, cnt: 0 }, '90+': { total: 0, cnt: 0 } };
+  topPend.forEach(p => {
+    const k = p.dias <= 30 ? '0-30' : p.dias <= 60 ? '31-60' : p.dias <= 90 ? '61-90' : '90+';
+    buckets[k].total += p.total;
+    buckets[k].cnt += 1;
+  });
 
   const date = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const estatusColors: Record<string, string> = { Emitido: COLORS.yellow, 'En Proceso de Pago': COLORS.blue, Programado: COLORS.green, 'Sin confirmacion': COLORS.red, Presupuestado: COLORS.gray };
+  const estTagClass = (s: string) => s === 'Pagado' ? 'tag-green' : s === 'Cancelado' ? 'tag-red' : 'tag-yellow';
 
   const body = `
+<!-- KPIs -->
 <div class="kpi-row">
-  <div class="kpi">
-    <div class="label">Total Pendiente de Cobro</div>
-    <div class="value" style="color:${COLORS.red}">${fmtFull(totalPendiente)}</div>
-    <div class="sub">${totalFacturas} facturas</div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Facturación Emitida YTD</div>
+    <div class="value">${fmtFull(facturadoYTD)}</div>
+    <div class="sub" style="color:${pctVarFact >= 0 ? COLORS.green : COLORS.red}">${pctVarFact >= 0 ? '+' : ''}${pctVarFact.toFixed(1)}% vs ${lastYear}</div>
   </div>
-  ${estatusData.slice(0, 4).map((e: any) => `
-  <div class="kpi">
-    <div class="label">${e.estatus}</div>
-    <div class="value">${fmtFull(e.total)}</div>
-    <div class="sub">${e.cnt} facturas</div>
-  </div>`).join('')}
+  <div class="kpi" style="border-top:3px solid ${COLORS.green}">
+    <div class="label">$ Cobrado YTD</div>
+    <div class="value">${fmtFull(pagadoYTD)}</div>
+    <div class="sub" style="color:${pctVarCobro >= 0 ? COLORS.green : COLORS.red}">${pctVarCobro >= 0 ? '+' : ''}${pctVarCobro.toFixed(1)}% vs ${lastYear}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.dark}">
+    <div class="label">% Cobranza Efectiva</div>
+    <div class="value">${pctCobrado.toFixed(1)}%</div>
+    <div class="sub">de facturación ${year}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.yellow}">
+    <div class="label">$ Pendiente ${year}</div>
+    <div class="value" style="color:${COLORS.yellow}">${fmtFull(pendienteYTD)}</div>
+    <div class="sub">${(estData.find((e: any) => e.name === 'En Proceso de Pago')?.cnt || 0) + (estData.find((e: any) => e.name === 'Emitido')?.cnt || 0)} facturas</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.red}">
+    <div class="label">$ Saldo Antiguo</div>
+    <div class="value" style="color:${COLORS.red}">${fmtFull(factAntigua)}</div>
+    <div class="sub">${factAntiguaCnt} facturas pre-${year}</div>
+  </div>
+  <div class="kpi" style="border-top:3px solid ${COLORS.gray}">
+    <div class="label">$ Cancelado YTD</div>
+    <div class="value">${fmtFull(cancelado)}</div>
+    <div class="sub">${estData.find((e: any) => e.name === 'Cancelado')?.cnt || 0} facturas</div>
+  </div>
 </div>
 
+<!-- ROW 1: Estatus donut + Política de pago + Condiciones -->
+<div class="chart-row" style="grid-template-columns:1.2fr 1fr 1fr">
+  <div class="chart-card">
+    <h3>Facturación por Estatus ${year}</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="estatusChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Pendiente por Política de Pago</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="politicaChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Crédito vs Contado</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="condicionesChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 2: Por mes stacked + Antigüedad saldos -->
+<div class="chart-row" style="grid-template-columns:2fr 1fr">
+  <div class="chart-card">
+    <h3>Facturación Emitida vs Cobrada por Mes ${year}</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="mesChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Antigüedad de Saldos Pendientes</h3>
+    <div class="chart-wrap" style="height:300px"><canvas id="antiguedadChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ROW 3: Uso CFDI -->
 <div class="chart-row">
-  <div class="chart-card">
-    <h3>Pendiente por Estatus</h3>
-    <div class="chart-wrap"><canvas id="estatusChart"></canvas></div>
-  </div>
-  <div class="chart-card">
-    <h3>Por Politica de Pago</h3>
-    <div class="chart-wrap"><canvas id="politicaChart"></canvas></div>
+  <div class="chart-card" style="grid-column:1/-1">
+    <h3>Por Uso de CFDI</h3>
+    <div class="chart-wrap" style="height:240px"><canvas id="cfdiChart"></canvas></div>
   </div>
 </div>
 
-<div class="table-card">
-  <h3>Top Facturas Pendientes</h3>
+<!-- TABLA: Top facturas pendientes -->
+<div class="table-card" style="margin-bottom:24px">
+  <h3>Top 20 Facturas Pendientes de Cobro</h3>
   <table>
-    <tr><th>Factura</th><th>Cuenta</th><th>Monto</th><th>Estatus</th><th>Emision</th><th>Politica</th></tr>
-    ${pendientes.map((p: any) => `<tr><td>${p.name || '-'}</td><td>${p.acct || '-'}</td><td><strong>${fmtFull(p.total)}</strong></td><td><span class="tag tag-${p.estatus === 'Emitido' ? 'yellow' : p.estatus?.includes('Proceso') ? 'blue' : 'red'}">${p.estatus}</span></td><td>${p.emision || '-'}</td><td>${p.politica || '-'}</td></tr>`).join('')}
+    <thead>
+      <tr>
+        <th>Factura</th>
+        <th>Cuenta</th>
+        <th style="text-align:right">Monto</th>
+        <th>Estatus</th>
+        <th>Emisión</th>
+        <th>Política</th>
+        <th style="text-align:right">Días</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${topPend.map(p => `
+      <tr>
+        <td><strong>${(p.name || '—').toString().replace(/</g, '&lt;')}</strong></td>
+        <td>${p.acct.replace(/</g, '&lt;')}</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(p.total)}</td>
+        <td><span class="tag ${estTagClass(p.estatus)}">${p.estatus}</span></td>
+        <td>${p.emision}</td>
+        <td>${p.politica}</td>
+        <td style="text-align:right;color:${p.dias > 60 ? COLORS.red : p.dias > 30 ? COLORS.yellow : COLORS.green}">${p.dias}d</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+</div>
+
+<!-- TABLA: Top cuentas con saldo -->
+<div class="table-card">
+  <h3>Top 10 Cuentas con Mayor Saldo Pendiente</h3>
+  <table>
+    <thead><tr><th>Cuenta</th><th style="text-align:right">$ Saldo</th><th style="text-align:right"># Facturas</th></tr></thead>
+    <tbody>
+      ${topAcc.map(a => `
+      <tr>
+        <td>${(a.name || '—').toString().replace(/</g, '&lt;')}</td>
+        <td style="text-align:right;font-weight:500">${fmtFull(a.total)}</td>
+        <td style="text-align:right;color:#6B7280">${a.cnt}</td>
+      </tr>`).join('')}
+    </tbody>
   </table>
 </div>
 
 <script>
-const fontDef={family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const fontDef = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:11};
+const fontSm = {family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",size:10};
+function fmt(n){if(n==null||isNaN(n))return'$0';if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n.toFixed(0)}
+const estColors = {Pagado:'${COLORS.green}','En Proceso de Pago':'${COLORS.blue}',Emitido:'${COLORS.yellow}',Cancelado:'${COLORS.gray}'};
 
+// 1. Estatus donut
+const estData = ${JSON.stringify(estData)};
 new Chart(document.getElementById('estatusChart'),{
   type:'doughnut',
-  data:{labels:${JSON.stringify(estatusData.map((e: any) => e.estatus))},datasets:[{data:${JSON.stringify(estatusData.map((e: any) => e.total))},backgroundColor:${JSON.stringify(estatusData.map((e: any) => estatusColors[e.estatus] || COLORS.gray))}}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>'$'+(c.parsed/1000000).toFixed(2)+'M'}}}}
+  data:{labels:estData.map(d=>d.name),datasets:[{data:estData.map(d=>d.total),backgroundColor:estData.map(d=>estColors[d.name]||'${COLORS.gray}')}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)+' ('+estData[c.dataIndex].cnt+' fact.)'}}}}
 });
 
+// 2. Política de pago
+const politicas = ${JSON.stringify(politicas)};
 new Chart(document.getElementById('politicaChart'),{
   type:'bar',
-  data:{labels:${JSON.stringify(politicaData.map((p: any) => p.politica))},datasets:[{data:${JSON.stringify(politicaData.map((p: any) => p.total))},backgroundColor:'rgba(59,130,246,0.7)',borderRadius:4}]},
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M',font:fontDef}},x:{ticks:{font:fontDef}}}}
+  data:{labels:politicas.map(p=>p.name),datasets:[{data:politicas.map(p=>p.total),backgroundColor:'${COLORS.blue}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' ('+politicas[c.dataIndex].cnt+' fact.)'}}},scales:{x:{ticks:{callback:v=>fmt(v),font:fontSm},grid:{color:'#f0f0f0'}},y:{ticks:{font:fontSm}}}}
+});
+
+// 3. Condiciones (Crédito vs Contado)
+const condiciones = ${JSON.stringify(condiciones)};
+new Chart(document.getElementById('condicionesChart'),{
+  type:'doughnut',
+  data:{labels:condiciones.map(c=>c.name),datasets:[{data:condiciones.map(c=>c.total),backgroundColor:['${COLORS.red}','${COLORS.green}']}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:fontSm,boxWidth:10}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}
+});
+
+// 4. Por mes (stacked)
+new Chart(document.getElementById('mesChart'),{
+  type:'bar',
+  data:{labels:meses,datasets:[
+    {label:'Cobrado',data:${JSON.stringify(factPagadoMes)},backgroundColor:'${COLORS.green}',borderRadius:4,stack:'a'},
+    {label:'Pendiente',data:${JSON.stringify(factEmitidoMes)},backgroundColor:'${COLORS.yellow}',borderRadius:4,stack:'a'}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:fontDef,boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{y:{stacked:true,ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{stacked:true,ticks:{font:fontDef}}}}
+});
+
+// 5. Antigüedad
+const buckets = ${JSON.stringify(buckets)};
+const bColors = {'0-30':'${COLORS.green}','31-60':'${COLORS.yellow}','61-90':'#F97316','90+':'${COLORS.red}'};
+new Chart(document.getElementById('antiguedadChart'),{
+  type:'bar',
+  data:{labels:Object.keys(buckets),datasets:[{data:Object.values(buckets).map(b=>b.total),backgroundColor:Object.keys(buckets).map(k=>bColors[k]),borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' ('+Object.values(buckets)[c.dataIndex].cnt+' fact.)'}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontDef}}}}
+});
+
+// 6. Uso CFDI
+const usoCFDI = ${JSON.stringify(usoCFDI)};
+new Chart(document.getElementById('cfdiChart'),{
+  type:'bar',
+  data:{labels:usoCFDI.map(u=>u.name),datasets:[{data:usoCFDI.map(u=>u.total),backgroundColor:'${COLORS.dark}',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' ('+usoCFDI[c.dataIndex].cnt+' fact.)'}}},scales:{y:{ticks:{callback:v=>fmt(v),font:fontDef},grid:{color:'#f0f0f0'}},x:{ticks:{font:fontSm}}}}
 });
 </script>`;
 
@@ -1871,9 +2086,9 @@ new Chart(document.getElementById('politicaChart'),{
     id: 'cobranza',
     title: 'Cobranza',
     icon: '&#128179;',
-    html: dashboardShell('Cobranza y Facturacion', date, body),
+    html: dashboardShell(`Cobranza y Facturación - ${year}`, date, body),
     generatedAt: now.toISOString(),
-    summary: `Pendiente: ${fmt(totalPendiente)} (${totalFacturas} facturas)`,
+    summary: `Facturado: ${fmt(facturadoYTD)} | Cobrado: ${fmt(pagadoYTD)} (${pctCobrado.toFixed(0)}%) | Pendiente: ${fmt(pendienteYTD)} | Saldo antiguo: ${fmt(factAntigua)}`,
   };
 }
 
