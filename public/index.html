@@ -340,6 +340,27 @@
       align-items: center;
       gap: 8px;
     }
+    .bot-status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: rgba(0,0,0,0.04); font-size: 12px;
+      color: var(--text-secondary); cursor: default;
+      transition: background 0.15s ease;
+      user-select: none;
+    }
+    .bot-status-pill.error { cursor: pointer; }
+    .bot-status-pill.error:hover { background: rgba(255,22,40,0.1); color: var(--gptw-red); }
+    .bot-status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ccc;
+      flex-shrink: 0;
+    }
+    .bot-status-pill.healthy .bot-status-dot { background: var(--green, #10B981); }
+    .bot-status-pill.warning .bot-status-dot { background: #F59E0B; animation: bot-pulse 1.5s infinite; }
+    .bot-status-pill.error .bot-status-dot { background: var(--gptw-red); animation: bot-pulse 1.5s infinite; }
+    @keyframes bot-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
     .home-date {
       font-size: 13px;
       color: var(--text-muted);
@@ -1868,6 +1889,10 @@
           <div class="home-subtitle">
             <span>Tus dashboards actualizados</span>
             <span class="home-date" id="homeDate"></span>
+            <span class="bot-status-pill" id="botStatusPill" onclick="onBotStatusClick()" title="Estado del bot">
+              <span class="bot-status-dot"></span>
+              <span class="bot-status-text" id="botStatusText">Verificando...</span>
+            </span>
           </div>
         </div>
         <div class="home-grid" id="homeGrid">
@@ -3091,6 +3116,72 @@
       container.appendChild(row);
       if (typeof scrollToBottom === 'function') scrollToBottom();
     }
+
+    /* ================================================================
+       BOT STATUS PILL — indicador siempre visible en home
+       ================================================================ */
+    async function updateBotStatusPill() {
+      const pill = document.getElementById('botStatusPill');
+      const text = document.getElementById('botStatusText');
+      if (!pill || !text || !state.token) return;
+      try {
+        const res = await fetch('/bot-status', {
+          headers: { 'Authorization': 'Bearer ' + state.token }
+        });
+        if (!res.ok) {
+          pill.className = 'bot-status-pill error';
+          text.textContent = 'Sin auth';
+          pill.title = 'Sin permiso para verificar el estado del bot';
+          pill._reason = null;
+          pill._canFix = false;
+          return;
+        }
+        const data = await res.json();
+        if (data.healthy) {
+          pill.className = 'bot-status-pill healthy';
+          text.textContent = 'Operativo';
+          pill.title = 'El bot está conectado y respondiendo';
+          pill._reason = null;
+          pill._canFix = false;
+          return;
+        }
+        const labels = {
+          oauth_expired: 'OAuth expirado',
+          killed: 'Bot caído',
+          not_listening: 'Iniciando...',
+          error: 'Error',
+        };
+        pill.className = data.reason === 'not_listening'
+          ? 'bot-status-pill warning'
+          : 'bot-status-pill error';
+        text.textContent = labels[data.reason] || 'No disponible';
+        pill.title = (data.message || '') + (data.can_fix ? ' — click para renovar' : '');
+        pill._reason = data.reason;
+        pill._canFix = !!data.can_fix;
+      } catch {
+        pill.className = 'bot-status-pill error';
+        text.textContent = 'Sin conexión';
+        pill.title = 'No se pudo contactar al servidor';
+        pill._canFix = false;
+      }
+    }
+    function onBotStatusClick() {
+      const pill = document.getElementById('botStatusPill');
+      if (!pill) return;
+      if (pill._canFix && pill._reason === 'oauth_expired') {
+        window.open('/relogin?token=' + encodeURIComponent(state.token || ''), '_blank');
+      }
+    }
+    // Polling: arranca cuando hay token, refresca cada 30s.
+    setInterval(() => { if (state.token) updateBotStatusPill(); }, 30000);
+    // Primer check apenas tengamos token (puede tardar 1-2s en bootstrap).
+    (function initBotStatusPill(){
+      const tryIt = () => {
+        if (state.token) updateBotStatusPill();
+        else setTimeout(tryIt, 800);
+      };
+      setTimeout(tryIt, 1500);
+    })();
 
     /* ================================================================
        MESSAGES
