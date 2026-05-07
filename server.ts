@@ -983,7 +983,10 @@ Bun.serve({
 
     // Start OAuth flow: send /login to tmux, capture URL
     if (req.method === "POST" && url.pathname === "/relogin/start") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const startCtx = await validateAuth(req);
+      if (!startCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      const startAdmin = requireAdmin(startCtx);
+      if (startAdmin) return startAdmin;
       try {
         await tmuxSend("C-u");
         await sleep(300);
@@ -1004,7 +1007,10 @@ Bun.serve({
 
     // Submit OAuth code: inject into tmux with -l, confirm with Enter, verify
     if (req.method === "POST" && url.pathname === "/relogin/code") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const codeCtx = await validateAuth(req);
+      if (!codeCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      const codeAdmin = requireAdmin(codeCtx);
+      if (codeAdmin) return codeAdmin;
       try {
         const body = await req.json() as { code?: string };
         const code = (body.code ?? "").trim();
