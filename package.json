@@ -4,6 +4,7 @@
   "description": "Chat bot para gerentes de Great Place to Work - conectado a Salesforce via Claude Code Channels",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.105.3",
     "zod": "^3.24.0"
   }
 }

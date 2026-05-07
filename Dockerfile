@@ -1,4 +1,4 @@
-FROM oven/bun:1.1-debian
+FROM oven/bun:1-debian
 RUN apt-get update && apt-get install -y curl tmux ca-certificates && \
     curl -fsSL https://claude.ai/install.sh | bash && \
     echo 'export PATH="/root/.local/bin:$PATH"' >> /root/.bashrc && \

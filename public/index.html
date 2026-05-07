@@ -7,6 +7,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     /* ================================================================
        CSS VARIABLES
@@ -148,6 +150,25 @@
     }
     .login-btn:hover { background: var(--gptw-red-hover); }
     .login-btn:active { transform: scale(0.98); }
+    .login-btn.google-btn {
+      background: #fff;
+      color: #1f1f1f;
+      border: 1px solid #dadce0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .login-btn.google-btn:hover { background: #f8f9fa; }
+    .login-btn[disabled] { opacity: 0.6; cursor: progress; }
+    .login-hint {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--text-muted, #6b6c7b);
+      min-height: 18px;
+      text-align: center;
+    }
+    .login-hint.error { color: var(--gptw-red); }
 
     /* ================================================================
        APP LAYOUT
@@ -1722,6 +1743,41 @@
 
     /* Utility */
     .hidden { display: none !important; }
+    .perm-hidden { display: none !important; }
+
+    /* ================================================================
+       ADMIN VIEW
+       ================================================================ */
+    .admin-view { padding: 32px 40px; max-width: 1280px; margin: 0 auto; }
+    .admin-view h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .admin-view .subtitle { color: var(--text-muted, #6b6c7b); margin-bottom: 28px; font-size: 14px; }
+    .admin-tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #e5e5ea; }
+    .admin-tab { padding: 10px 16px; background: transparent; border: none; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; color: #6b6c7b; border-bottom: 2px solid transparent; }
+    .admin-tab.active { color: var(--gptw-red, #FF1628); border-bottom-color: var(--gptw-red, #FF1628); }
+    .admin-tab:hover:not(.active) { color: #11131C; }
+
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .admin-kpi { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 18px 20px; }
+    .admin-kpi .v { font-size: 28px; font-weight: 700; color: var(--gptw-red, #FF1628); }
+    .admin-kpi .l { font-size: 12px; color: #6b6c7b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .admin-card { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .admin-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+
+    .users-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .users-table th { text-align: left; padding: 10px 8px; font-weight: 600; color: #6b6c7b; border-bottom: 1px solid #e5e5ea; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .users-table td { padding: 10px 8px; border-bottom: 1px solid #f0f0f3; vertical-align: middle; }
+    .users-table tr:hover td { background: #fafafa; }
+    .users-table .role-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .users-table .role-badge.admin { background: #FFF1F2; color: var(--gptw-red, #FF1628); }
+    .users-table .role-badge.user { background: #f0f0f3; color: #6b6c7b; }
+    .users-table input[type="checkbox"] { cursor: pointer; }
+    .users-table select { font-family: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid #d0d0d3; border-radius: 6px; background: #fff; }
+
+    .filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-row label { font-size: 12px; color: #6b6c7b; }
+    .filter-row input, .filter-row select { font-family: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #d0d0d3; border-radius: 6px; background: #fff; }
+    .filter-row .btn { padding: 6px 14px; background: var(--gptw-red, #FF1628); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -1734,18 +1790,16 @@
       </div>
       <h1>Sales Assistant</h1>
       <p>Inicia sesion para acceder al asistente de ventas de Great Place to Work</p>
-      <form id="loginForm">
-        <div class="login-field">
-          <label for="loginName">Nombre completo</label>
-          <input type="text" id="loginName" placeholder="Ej: Maria Garcia" required autocomplete="name" />
-        </div>
-        <div class="login-field">
-          <label for="loginToken">Token de acceso</label>
-          <input type="password" id="loginToken" placeholder="Ingresa tu token" autocomplete="off" />
-          <div class="hint">Dejalo vacio para modo desarrollo</div>
-        </div>
-        <button type="submit" class="login-btn">Iniciar sesion</button>
-      </form>
+      <button type="button" id="googleLoginBtn" class="login-btn google-btn">
+        <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.836.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+        </svg>
+        <span>Iniciar sesion con Google</span>
+      </button>
+      <div class="login-hint" id="loginHint"></div>
     </div>
   </div>
 
@@ -1777,9 +1831,12 @@
         <button class="sidebar-nav-btn" id="navChat" onclick="switchView('chat')" title="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
-        <button class="sidebar-nav-btn" id="navMyReports" onclick="switchView('myreports')" title="Mis Reportes">
+        <button class="sidebar-nav-btn" id="navMyReports" onclick="switchView('myreports')" title="Mis Reportes" data-perm="can_save_reports">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span class="nav-badge hidden" id="myReportsBadge">0</span>
+        </button>
+        <button class="sidebar-nav-btn" id="navAdmin" onclick="switchView('admin')" title="Admin" data-perm="admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1l9 4v6c0 5.55-3.84 10.74-9 12-5.16-1.26-9-6.45-9-12V5l9-4z"/></svg>
         </button>
       </div>
 
@@ -1795,7 +1852,7 @@
         </div>
       </div>
 
-      <div class="sidebar-avatar" id="sidebarAvatar" title="Usuario">?</div>
+      <div class="sidebar-avatar" id="sidebarAvatar" title="Usuario" style="cursor:pointer" onclick="logout()">?</div>
     </aside>
 
     <!-- Main content -->
@@ -2007,6 +2064,68 @@
         <div class="myreports-grid hidden" id="myReportsGrid"></div>
       </div>
 
+      <!-- ====== VIEW: ADMIN ====== -->
+      <div class="view admin-view" id="viewAdmin">
+        <h1>Panel de Administracion</h1>
+        <div class="subtitle">Gestion de usuarios y analytics de uso de la app</div>
+
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-admintab="analytics" onclick="switchAdminTab('analytics')">Analytics</button>
+          <button class="admin-tab" data-admintab="users" onclick="switchAdminTab('users')">Usuarios</button>
+        </div>
+
+        <!-- ANALYTICS TAB -->
+        <div id="adminTabAnalytics">
+          <div class="filter-row">
+            <label>Desde:</label>
+            <input type="date" id="adminFrom" />
+            <label>Hasta:</label>
+            <input type="date" id="adminTo" />
+            <label>Usuario:</label>
+            <select id="adminUserFilter"><option value="">Todos</option></select>
+            <button class="btn" onclick="loadAdminAnalytics()">Aplicar</button>
+          </div>
+
+          <div class="kpi-row" id="adminKpis">
+            <div class="admin-kpi"><div class="v" id="kpiUsers">-</div><div class="l">Usuarios registrados</div></div>
+            <div class="admin-kpi"><div class="v" id="kpiLogins">-</div><div class="l">Logins en rango</div></div>
+            <div class="admin-kpi"><div class="v" id="kpiMessages">-</div><div class="l">Mensajes</div></div>
+            <div class="admin-kpi"><div class="v" id="kpiArtifacts">-</div><div class="l">Charts generados</div></div>
+            <div class="admin-kpi"><div class="v" id="kpiReports">-</div><div class="l">Reportes vistos</div></div>
+          </div>
+
+          <div class="admin-card">
+            <h3>Actividad por dia</h3>
+            <canvas id="chartByDay" height="80"></canvas>
+          </div>
+          <div class="admin-card">
+            <h3>Top usuarios (por mensajes)</h3>
+            <canvas id="chartTopUsers" height="80"></canvas>
+          </div>
+        </div>
+
+        <!-- USERS TAB -->
+        <div id="adminTabUsers" class="hidden">
+          <div class="admin-card">
+            <table class="users-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Email / Nombre</th>
+                  <th>Rol</th>
+                  <th>Chat</th>
+                  <th>Ver reportes</th>
+                  <th>Guardar</th>
+                  <th>Generar</th>
+                  <th>Exportar</th>
+                  <th>Ultimo login</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /main -->
 
   </div><!-- /app -->
@@ -2035,6 +2154,7 @@
     let state = {
       userName: '',
       token: '',
+      profile: null,           // { role, can_chat, can_view_reports, ... }
       chatId: '',
       questionCount: 0,
       artifacts: [],        // { id, title, html, type }
@@ -2100,16 +2220,71 @@
     }
 
     /* ================================================================
-       LOGIN
+       LOGIN (Supabase + Google OAuth)
        ================================================================ */
-    $('#loginForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = $('#loginName').value.trim();
-      const token = $('#loginToken').value.trim();
-      if (!name) return;
+    const SUPABASE_URL = '__SUPABASE_URL__';
+    const SUPABASE_PUBLISHABLE_KEY = '__SUPABASE_PUBLISHABLE_KEY__';
 
+    const supabaseClient = (SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY && !SUPABASE_URL.startsWith('__'))
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+          auth: { detectSessionInUrl: true, flowType: 'pkce', persistSession: true, autoRefreshToken: true }
+        })
+      : null;
+
+    function setLoginHint(text, isError) {
+      const el = $('#loginHint');
+      el.textContent = text || '';
+      el.classList.toggle('error', !!isError);
+    }
+
+    async function getFreshToken() {
+      if (!supabaseClient) return state.token;
+      const { data } = await supabaseClient.auth.getSession();
+      const tok = data?.session?.access_token || '';
+      state.token = tok;
+      return tok;
+    }
+
+    async function fetchMeAndLogin() {
+      if (!state.token) return null;
+      const headers = { 'Authorization': 'Bearer ' + state.token };
+      try {
+        const res = await fetch('/me', { headers });
+        if (!res.ok) return null;
+        const data = await res.json();
+        state.profile = data.profile;
+        // Registrar login event (no bloquea)
+        fetch('/auth/login', { method: 'POST', headers }).catch(() => {});
+        return data.profile;
+      } catch { return null; }
+    }
+
+    function applyPermissionsToUI() {
+      const p = state.profile || {};
+      const isAdmin = p.role === 'admin';
+
+      // Chat input
+      const chatInput = $('#chatInput');
+      if (chatInput) {
+        chatInput.disabled = !p.can_chat;
+        chatInput.placeholder = p.can_chat
+          ? (chatInput.dataset.originalPlaceholder || chatInput.placeholder)
+          : 'No tienes permiso para chatear. Contacta a un admin.';
+        if (!chatInput.dataset.originalPlaceholder && p.can_chat) {
+          chatInput.dataset.originalPlaceholder = chatInput.placeholder;
+        }
+      }
+
+      // Hide elements with data-perm="<perm>"
+      $$('[data-perm]').forEach(el => {
+        const perm = el.getAttribute('data-perm');
+        const allowed = perm === 'admin' ? isAdmin : !!p[perm];
+        el.classList.toggle('perm-hidden', !allowed);
+      });
+    }
+
+    async function enterApp(name) {
       state.userName = name;
-      state.token = token;
       state.chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
       const initials = getInitials(name);
@@ -2122,19 +2297,76 @@
 
       $('#loginOverlay').classList.add('hidden');
       $('#app').classList.add('visible');
-      $('#chatInput').disabled = false;
+
+      // Traer perfil (con permisos) ANTES de habilitar UI
+      await fetchMeAndLogin();
+      applyPermissionsToUI();
+
+      $('#chatInput').disabled = !(state.profile?.can_chat ?? true);
       updateSendBtn();
 
       switchView('home');
-      loadReports();
-    });
+      if (state.profile?.can_view_reports !== false) loadReports();
+    }
 
-    $('#loginToken').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        $('#loginForm').dispatchEvent(new Event('submit'));
+    function displayNameFromUser(u) {
+      const meta = u.user_metadata || {};
+      return meta.full_name || meta.name || (u.email ? u.email.split('@')[0] : 'Usuario');
+    }
+
+    async function initAuth() {
+      if (!supabaseClient) {
+        // Modo dev: sin Supabase configurado, entrar como invitado
+        enterApp('Dev');
+        return;
+      }
+
+      // Si el OAuth callback dejó el code en la URL, supabase-js lo intercambia automáticamente.
+      const { data: { session } } = await supabaseClient.auth.getSession();
+
+      if (session) {
+        state.token = session.access_token;
+        enterApp(displayNameFromUser(session.user));
+        // Limpiar la URL si venimos del callback
+        if (location.pathname === '/auth/callback' || location.hash.includes('access_token')) {
+          history.replaceState({}, '', '/');
+        }
+      }
+
+      // Refrescar token automáticamente cuando supabase-js lo hace
+      supabaseClient.auth.onAuthStateChange((event, sess) => {
+        if (sess?.access_token) state.token = sess.access_token;
+        if (event === 'SIGNED_OUT') location.reload();
+      });
+    }
+
+    $('#googleLoginBtn').addEventListener('click', async () => {
+      if (!supabaseClient) {
+        setLoginHint('Supabase no configurado en el server', true);
+        return;
+      }
+      const btn = $('#googleLoginBtn');
+      btn.disabled = true;
+      setLoginHint('Redirigiendo a Google...');
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: location.origin + '/auth/callback' },
+      });
+      if (error) {
+        btn.disabled = false;
+        setLoginHint('Error: ' + error.message, true);
       }
     });
+
+    async function logout() {
+      if (!supabaseClient) return location.reload();
+      if (!confirm('Cerrar sesion?')) return;
+      await supabaseClient.auth.signOut();
+      location.reload();
+    }
+    window.logout = logout;
+
+    initAuth();
 
     /* ================================================================
        VIEW SWITCHING
@@ -2165,6 +2397,9 @@
       } else if (view === 'report') {
         $('#viewReport').classList.add('active');
         $('#floatingChatBtn').classList.remove('hidden-fc');
+      } else if (view === 'admin') {
+        $('#viewAdmin').classList.add('active');
+        loadAdminInitial();
       }
 
       // Update sidebar nav
@@ -2172,6 +2407,7 @@
       if (view === 'home') $('#navHome').classList.add('active');
       else if (view === 'chat') $('#navChat').classList.add('active');
       else if (view === 'myreports') $('#navMyReports').classList.add('active');
+      else if (view === 'admin') $('#navAdmin').classList.add('active');
 
       // Update bottom nav
       $$('.bottom-nav-btn').forEach(b => {
@@ -3609,6 +3845,156 @@
       _originalOpenMyReport(index);
       renderDrilldownChips(state.activeReportTitle);
     };
+
+    /* ================================================================
+       ADMIN PANEL
+       ================================================================ */
+    let adminCharts = { byDay: null, topUsers: null };
+    let adminUsersCache = [];
+
+    function switchAdminTab(tab) {
+      $$('.admin-tab').forEach(b => b.classList.toggle('active', b.dataset.admintab === tab));
+      $('#adminTabAnalytics').classList.toggle('hidden', tab !== 'analytics');
+      $('#adminTabUsers').classList.toggle('hidden', tab !== 'users');
+      if (tab === 'users') loadAdminUsers();
+    }
+    window.switchAdminTab = switchAdminTab;
+
+    async function adminFetch(url, opts = {}) {
+      const headers = { ...(opts.headers || {}), 'Authorization': 'Bearer ' + state.token };
+      if (opts.body) headers['Content-Type'] = 'application/json';
+      const res = await fetch(url, { ...opts, headers });
+      if (!res.ok) throw new Error((await res.text()) || res.statusText);
+      return res.json();
+    }
+
+    async function loadAdminUsers() {
+      try {
+        const { users } = await adminFetch('/admin/users');
+        adminUsersCache = users;
+        renderUsersTable(users);
+        // Poblar el filtro de usuario en analytics
+        const sel = $('#adminUserFilter');
+        sel.innerHTML = '<option value="">Todos</option>' + users.map(u =>
+          '<option value="' + u.id + '">' + escapeHtml(u.email) + '</option>'
+        ).join('');
+      } catch (e) {
+        alert('Error cargando usuarios: ' + e.message);
+      }
+    }
+
+    function renderUsersTable(users) {
+      const fmtDate = (s) => s ? new Date(s).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const tbody = $('#usersTableBody');
+      tbody.innerHTML = users.map(u => `
+        <tr data-uid="${u.id}">
+          <td>
+            <div style="font-weight:500">${escapeHtml(u.display_name || u.email.split('@')[0])}</div>
+            <div style="font-size:11px;color:#6b6c7b">${escapeHtml(u.email)}</div>
+          </td>
+          <td>
+            <select onchange="patchUser('${u.id}', { role: this.value })">
+              <option value="user" ${u.role==='user'?'selected':''}>user</option>
+              <option value="admin" ${u.role==='admin'?'selected':''}>admin</option>
+            </select>
+          </td>
+          <td><input type="checkbox" ${u.can_chat?'checked':''} onchange="patchUser('${u.id}', { can_chat: this.checked })"></td>
+          <td><input type="checkbox" ${u.can_view_reports?'checked':''} onchange="patchUser('${u.id}', { can_view_reports: this.checked })"></td>
+          <td><input type="checkbox" ${u.can_save_reports?'checked':''} onchange="patchUser('${u.id}', { can_save_reports: this.checked })"></td>
+          <td><input type="checkbox" ${u.can_generate_charts?'checked':''} onchange="patchUser('${u.id}', { can_generate_charts: this.checked })"></td>
+          <td><input type="checkbox" ${u.can_export?'checked':''} onchange="patchUser('${u.id}', { can_export: this.checked })"></td>
+          <td style="font-size:11px;color:#6b6c7b">${fmtDate(u.last_login_at)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function patchUser(id, body) {
+      try {
+        await adminFetch('/admin/users/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+      } catch (e) {
+        alert('Error guardando: ' + e.message);
+        loadAdminUsers();
+      }
+    }
+    window.patchUser = patchUser;
+
+    function loadAdminInitial() {
+      // Defaults: ultimos 30 dias
+      const today = new Date();
+      const from = new Date(today.getTime() - 30 * 86400000);
+      $('#adminFrom').value = from.toISOString().slice(0,10);
+      $('#adminTo').value = today.toISOString().slice(0,10);
+      loadAdminUsers();
+      loadAdminAnalytics();
+    }
+
+    async function loadAdminAnalytics() {
+      const from = $('#adminFrom').value;
+      const to = $('#adminTo').value;
+      const userId = $('#adminUserFilter').value;
+      const params = new URLSearchParams();
+      if (from) params.set('from', new Date(from).toISOString());
+      if (to) params.set('to', new Date(to + 'T23:59:59').toISOString());
+      if (userId) params.set('user_id', userId);
+
+      try {
+        const data = await adminFetch('/admin/analytics?' + params.toString());
+
+        // KPIs
+        $('#kpiUsers').textContent = data.usersCount;
+        $('#kpiLogins').textContent = data.totals.login || 0;
+        $('#kpiMessages').textContent = data.totals.chat_message || 0;
+        $('#kpiArtifacts').textContent = data.totals.artifact_generated || 0;
+        $('#kpiReports').textContent = data.totals.report_viewed || 0;
+
+        // Chart by day (stacked bars)
+        const days = Object.keys(data.byDay).sort();
+        const types = ['login', 'chat_message', 'artifact_generated', 'report_viewed'];
+        const colors = { login: '#398ffc', chat_message: '#FF1628', artifact_generated: '#11131C', report_viewed: '#9aa0a6' };
+        const datasets = types.map(t => ({
+          label: t,
+          backgroundColor: colors[t],
+          data: days.map(d => data.byDay[d]?.[t] || 0),
+        }));
+
+        if (adminCharts.byDay) adminCharts.byDay.destroy();
+        adminCharts.byDay = new Chart($('#chartByDay'), {
+          type: 'bar',
+          data: { labels: days, datasets },
+          options: {
+            responsive: true,
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'bottom' } },
+          },
+        });
+
+        // Top users (by chat_message count)
+        const userMessages = Object.entries(data.byUser)
+          .map(([uid, byType]) => ({ uid, count: byType.chat_message || 0 }))
+          .filter(x => x.count > 0)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+
+        const userMap = Object.fromEntries(adminUsersCache.map(u => [u.id, u.display_name || u.email]));
+        const labels = userMessages.map(x => userMap[x.uid] || x.uid.slice(0, 8));
+        const counts = userMessages.map(x => x.count);
+
+        if (adminCharts.topUsers) adminCharts.topUsers.destroy();
+        adminCharts.topUsers = new Chart($('#chartTopUsers'), {
+          type: 'bar',
+          data: { labels, datasets: [{ label: 'Mensajes', data: counts, backgroundColor: '#FF1628' }] },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } },
+          },
+        });
+      } catch (e) {
+        alert('Error cargando analytics: ' + e.message);
+      }
+    }
+    window.loadAdminAnalytics = loadAdminAnalytics;
 
     /* ================================================================
        INIT

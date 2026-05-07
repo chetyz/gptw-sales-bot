@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { createClient } from "@supabase/supabase-js";
 import { generateAllReports, type ReportCache } from "./reports";
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -171,6 +172,10 @@ setTimeout(() => { refreshReports(); scheduleNextRun(); }, 10000);
 
 // ─── SSE connections per chat_id ───────────────────────────────────────────
 const sseClients = new Map<string, Set<(data: string) => void>>();
+// Bind chat_id ↔ user_id + el sb client del user, para loguear artifacts del bot
+// usando la identidad del user dueño del chat (RLS feliz).
+const chatOwners = new Map<string, string>();
+const chatSbClients = new Map<string, any>();
 
 function broadcastToChat(chatId: string, event: string, data: object) {
   const clients = sseClients.get(chatId);
@@ -179,14 +184,133 @@ function broadcastToChat(chatId: string, event: string, data: object) {
   for (const emit of clients) emit(payload);
 }
 
-// ─── Auth ──────────────────────────────────────────────────────────────────
+function logArtifactForChat(chatId: string, title: string) {
+  const userId = chatOwners.get(chatId);
+  const sb = chatSbClients.get(chatId);
+  if (!userId || !sb) return;
+  sb.from("events").insert({ user_id: userId, type: "artifact_generated", metadata: { chat_id: chatId, title } }).then(({ error }: any) => {
+    if (error) process.stderr.write(`[events] artifact_generated insert failed: ${error.message}\n`);
+  });
+}
+
+// ─── Auth (Supabase JWT con fallback a token estático) ────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
+const ALLOWED_EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN ?? "").trim().toLowerCase();
 const ACCESS_TOKEN = process.env.GPTW_ACCESS_TOKEN ?? "";
 
-function checkAuth(req: Request): boolean {
-  if (!ACCESS_TOKEN) return true;
+const supabase = SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+  : null;
+
+type Profile = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: "admin" | "user";
+  can_chat: boolean;
+  can_view_reports: boolean;
+  can_save_reports: boolean;
+  can_generate_charts: boolean;
+  can_export: boolean;
+};
+
+type Permission = keyof Pick<
+  Profile,
+  "can_chat" | "can_view_reports" | "can_save_reports" | "can_generate_charts" | "can_export"
+>;
+
+type AuthCtx = {
+  user: { id: string; email: string };
+  profile: Profile;
+  jwt: string;
+  // Per-request Supabase client carrying the user's JWT, so RLS + auth.uid() works.
+  sb: ReturnType<typeof createClient>;
+};
+
+const DEV_PROFILE: Profile = {
+  id: "dev",
+  email: "dev@local",
+  display_name: "Dev",
+  role: "admin",
+  can_chat: true,
+  can_view_reports: true,
+  can_save_reports: true,
+  can_generate_charts: true,
+  can_export: true,
+};
+
+function extractToken(req: Request): string | null {
   const url = new URL(req.url);
-  const token = url.searchParams.get("token") ?? req.headers.get("Authorization")?.replace("Bearer ", "");
-  return token === ACCESS_TOKEN;
+  const queryToken = url.searchParams.get("token");
+  if (queryToken) return queryToken;
+  const header = req.headers.get("Authorization");
+  if (header?.startsWith("Bearer ")) return header.slice(7);
+  return null;
+}
+
+async function validateAuth(req: Request): Promise<AuthCtx | null> {
+  // Modo dev: sin Supabase configurado, devolver un perfil con todos los permisos.
+  if (!supabase) {
+    if (!ACCESS_TOKEN) return { user: { id: "dev", email: "dev@local" }, profile: DEV_PROFILE, jwt: "", sb: null as any };
+    const t = extractToken(req);
+    if (t !== ACCESS_TOKEN) return null;
+    return { user: { id: "static", email: "static@token" }, profile: { ...DEV_PROFILE, id: "static", email: "static@token" }, jwt: t, sb: null as any };
+  }
+
+  const token = extractToken(req);
+  if (!token) return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data?.user?.email) return null;
+
+  const email = data.user.email.toLowerCase();
+  if (ALLOWED_EMAIL_DOMAIN && !email.endsWith("@" + ALLOWED_EMAIL_DOMAIN)) return null;
+
+  // Cliente por request con el JWT del user → RLS sees auth.uid() = user.id.
+  const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: profile, error: profErr } = await sb
+    .from("profiles")
+    .select("id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export")
+    .eq("id", data.user.id)
+    .single();
+
+  if (profErr || !profile) return null;
+
+  return {
+    user: { id: data.user.id, email },
+    profile: profile as Profile,
+    jwt: token,
+    sb,
+  };
+}
+
+function requirePermission(ctx: AuthCtx, perm: Permission): Response | null {
+  if (ctx.profile[perm]) return null;
+  return new Response(JSON.stringify({ error: "Forbidden", missing_permission: perm }), {
+    status: 403,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function requireAdmin(ctx: AuthCtx): Response | null {
+  if (ctx.profile.role === "admin") return null;
+  return new Response(JSON.stringify({ error: "Admin only" }), {
+    status: 403,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+// Fire-and-forget event logger. Doesn't block the response.
+function logEvent(ctx: AuthCtx, type: "login" | "chat_message" | "artifact_generated" | "report_viewed" | "report_exported", metadata: object = {}) {
+  if (!ctx.sb) return;
+  ctx.sb.from("events").insert({ user_id: ctx.user.id, type, metadata }).then(({ error }) => {
+    if (error) process.stderr.write(`[events] ${type} insert failed: ${error.message}\n`);
+  });
 }
 
 // ─── MCP Channel Server ───────────────────────────────────────────────────
@@ -425,6 +549,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (name === "send_artifact") {
     const { chat_id, title, html } = args as { chat_id: string; title: string; html: string };
     broadcastToChat(chat_id, "artifact", { title, html });
+    logArtifactForChat(chat_id, title);
     return { content: [{ type: "text", text: `artifact "${title}" sent` }] };
   }
 
@@ -478,6 +603,13 @@ await mcp.connect(new StdioServerTransport());
 // ─── Serve the web UI and handle API routes ───────────────────────────────
 const htmlPath = join(import.meta.dir, "public", "index.html");
 
+function renderIndexHtml(): string {
+  const raw = readFileSync(htmlPath, "utf-8");
+  return raw
+    .replaceAll("__SUPABASE_URL__", SUPABASE_URL)
+    .replaceAll("__SUPABASE_PUBLISHABLE_KEY__", SUPABASE_PUBLISHABLE_KEY);
+}
+
 let nextChatId = 1;
 
 Bun.serve({
@@ -487,17 +619,37 @@ Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
 
-    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      return new Response(readFileSync(htmlPath, "utf-8"), {
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/auth/callback")) {
+      return new Response(renderIndexHtml(), {
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
       });
     }
 
+    // GET /me — quien soy y mis permisos. El frontend lo usa para condicionar UI.
+    if (req.method === "GET" && url.pathname === "/me") {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      return Response.json({ user: ctx.user, profile: ctx.profile });
+    }
+
+    // POST /auth/login — registra login event y actualiza last_login_at.
+    if (req.method === "POST" && url.pathname === "/auth/login") {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      logEvent(ctx, "login");
+      if (ctx.sb) ctx.sb.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", ctx.user.id).then(() => {});
+      return Response.json({ ok: true });
+    }
+
     if (req.method === "GET" && url.pathname === "/events") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
 
       const chatId = url.searchParams.get("chat_id");
       if (!chatId) return new Response("Missing chat_id", { status: 400 });
+
+      // Asociar chat → user para poder loguear artifact_generated después
+      chatOwners.set(chatId, ctx.user.id);
 
       const stream = new ReadableStream({
         start(ctrl) {
@@ -528,11 +680,21 @@ Bun.serve({
     }
 
     if (req.method === "POST" && url.pathname === "/message") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requirePermission(ctx, "can_chat");
+      if (denied) return denied;
 
       const body = await req.json() as { text: string; chat_id?: string; user_name?: string };
       const chatId = body.chat_id ?? String(nextChatId++);
-      const userName = body.user_name ?? "Gerente";
+      const userName = body.user_name ?? ctx.profile.display_name ?? "Gerente";
+
+      // Bind del chat al user para el logging de artifact_generated
+      chatOwners.set(chatId, ctx.user.id);
+      // Guardar el sb client del user (para insertar events bajo su JWT)
+      if (ctx.sb) chatSbClients.set(chatId, ctx.sb);
+
+      logEvent(ctx, "chat_message", { chat_id: chatId, length: body.text.length });
 
       await mcp.notification({
         method: "notifications/claude/channel",
@@ -546,12 +708,12 @@ Bun.serve({
     }
 
     if (req.method === "POST" && url.pathname === "/cancel") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
 
       const body = await req.json() as { chat_id: string };
       const chatId = body.chat_id;
 
-      // Broadcast cancel event to SSE clients so the UI knows it was cancelled
       broadcastToChat(chatId, "done", { message: "Solicitud cancelada por el usuario." });
 
       return Response.json({ ok: true, cancelled: true });
@@ -559,25 +721,114 @@ Bun.serve({
 
     // Serve pre-cached reports list
     if (req.method === "GET" && url.pathname === "/reports") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requirePermission(ctx, "can_view_reports");
+      if (denied) return denied;
       const list = reportsCache.map(r => ({ id: r.id, title: r.title, icon: r.icon, summary: r.summary, generatedAt: r.generatedAt }));
       return Response.json({ reports: list, generating: reportsGenerating });
     }
 
     // Serve individual report HTML
     if (req.method === "GET" && url.pathname.startsWith("/reports/")) {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requirePermission(ctx, "can_view_reports");
+      if (denied) return denied;
       const reportId = url.pathname.split("/reports/")[1];
       const report = reportsCache.find(r => r.id === reportId);
       if (!report) return Response.json({ error: "Report not found" }, { status: 404 });
+      logEvent(ctx, "report_viewed", { report_id: reportId, title: report.title });
       return Response.json(report);
     }
 
-    // Force refresh reports
+    // Force refresh reports — solo admin.
     if (req.method === "POST" && url.pathname === "/reports/refresh") {
-      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
-      refreshReports(); // async, don't await
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+      refreshReports();
       return Response.json({ ok: true, message: "Refresh started" });
+    }
+
+    // ─── ADMIN ENDPOINTS ──────────────────────────────────────────────────
+    if (req.method === "GET" && url.pathname === "/admin/users") {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+
+      const { data, error } = await ctx.sb
+        .from("profiles")
+        .select("id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export, created_at, last_login_at")
+        .order("created_at", { ascending: true });
+      if (error) return Response.json({ error: error.message }, { status: 500 });
+      return Response.json({ users: data });
+    }
+
+    if (req.method === "PATCH" && url.pathname.startsWith("/admin/users/")) {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+
+      const userId = url.pathname.split("/admin/users/")[1];
+      const body = await req.json() as Partial<Profile>;
+
+      // Whitelist de campos editables
+      const allowed: Partial<Profile> = {};
+      const fields: (keyof Profile)[] = ["role", "can_chat", "can_view_reports", "can_save_reports", "can_generate_charts", "can_export"];
+      for (const f of fields) if (f in body) (allowed as any)[f] = (body as any)[f];
+
+      const { data, error } = await ctx.sb.from("profiles").update(allowed).eq("id", userId).select().single();
+      if (error) return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ profile: data });
+    }
+
+    if (req.method === "GET" && url.pathname === "/admin/analytics") {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+
+      // Default: últimos 30 días
+      const to = url.searchParams.get("to") ?? new Date().toISOString();
+      const fromDefault = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const from = url.searchParams.get("from") ?? fromDefault;
+      const userIdFilter = url.searchParams.get("user_id");
+
+      let q = ctx.sb.from("events")
+        .select("type, user_id, created_at")
+        .gte("created_at", from)
+        .lte("created_at", to);
+      if (userIdFilter) q = q.eq("user_id", userIdFilter);
+
+      const { data: events, error } = await q;
+      if (error) return Response.json({ error: error.message }, { status: 500 });
+
+      // Agregar en JS (volumen chico)
+      const totals: Record<string, number> = {};
+      const byDay: Record<string, Record<string, number>> = {}; // day → type → count
+      const byUser: Record<string, Record<string, number>> = {}; // user_id → type → count
+
+      for (const e of events ?? []) {
+        totals[e.type] = (totals[e.type] ?? 0) + 1;
+        const day = (e.created_at as string).slice(0, 10);
+        if (!byDay[day]) byDay[day] = {};
+        byDay[day][e.type] = (byDay[day][e.type] ?? 0) + 1;
+        if (e.user_id) {
+          if (!byUser[e.user_id]) byUser[e.user_id] = {};
+          byUser[e.user_id][e.type] = (byUser[e.user_id][e.type] ?? 0) + 1;
+        }
+      }
+
+      // Total de profiles para el KPI "users registrados"
+      const { count: usersCount } = await ctx.sb
+        .from("profiles")
+        .select("id", { count: "exact", head: true });
+
+      return Response.json({ from, to, totals, byDay, byUser, usersCount: usersCount ?? 0 });
     }
 
     if (req.method === "GET" && url.pathname === "/health") {
@@ -590,4 +841,4 @@ Bun.serve({
 
 const stderr = (msg: string) => process.stderr.write(msg + "\n");
 stderr(`gptw-sales-bot: http://${HOST}:${PORT}`);
-stderr(`Access token: ${ACCESS_TOKEN ? "enabled" : "disabled (dev mode)"}`);
+stderr(`Auth: ${supabase ? `Supabase (${ALLOWED_EMAIL_DOMAIN ? "domain=" + ALLOWED_EMAIL_DOMAIN : "any email"})` : ACCESS_TOKEN ? "static token" : "disabled (dev mode)"}`);
