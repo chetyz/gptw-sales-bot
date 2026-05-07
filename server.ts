@@ -612,6 +612,145 @@ function renderIndexHtml(): string {
 
 let nextChatId = 1;
 
+// ─── Relogin helpers (manual OAuth refresh via tmux) ──────────────────────
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function tmuxRun(args: string[]): Promise<string> {
+  const proc = Bun.spawn(["tmux", ...args], { stdout: "pipe", stderr: "pipe" });
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  return out;
+}
+
+async function tmuxSend(...keys: string[]): Promise<void> {
+  await tmuxRun(["send-keys", "-t", "bot", ...keys]);
+}
+
+async function tmuxCapture(): Promise<string> {
+  return await tmuxRun(["capture-pane", "-t", "bot", "-p", "-S", "-120"]);
+}
+
+const RELOGIN_HTML = `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relogin - GPTW Bot</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#11131C;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#1a1d2a;border-radius:16px;padding:32px;max-width:560px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+h1{font-size:22px;margin-bottom:8px}
+.sub{color:#9ca3af;font-size:14px;margin-bottom:24px}
+.step{margin-bottom:20px;padding:16px;background:#11131C;border-radius:10px;border-left:3px solid #FF1628}
+.step-num{font-size:12px;color:#FF1628;font-weight:700;letter-spacing:1px;margin-bottom:6px}
+.step-title{font-weight:600;margin-bottom:8px}
+.btn{background:#FF1628;color:#fff;border:none;padding:12px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px;width:100%}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn:hover:not(:disabled){background:#e0142a}
+input{width:100%;background:#0a0c14;border:1px solid #2a2d3a;color:#fff;padding:12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-bottom:8px}
+input:focus{outline:none;border-color:#FF1628}
+.url{background:#0a0c14;padding:12px;border-radius:8px;font-family:monospace;font-size:11px;word-break:break-all;color:#398ffc;margin-bottom:8px;max-height:120px;overflow:auto}
+.status{padding:12px;border-radius:8px;font-size:13px;margin-top:8px}
+.status.ok{background:#0e3622;color:#4ade80;border:1px solid #166534}
+.status.err{background:#3a1010;color:#f87171;border:1px solid #7f1d1d}
+.status.info{background:#0e2436;color:#60a5fa;border:1px solid #1e3a5f}
+.hidden{display:none}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+a{color:#398ffc;text-decoration:none}
+a:hover{text-decoration:underline}
+.copy-btn{background:#2a2d3a;border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit}
+.copy-btn:hover{background:#3a3d4a}
+</style></head>
+<body>
+<div class="card">
+  <h1>🔐 Relogin GPTW Bot</h1>
+  <p class="sub">Renová la sesión OAuth de Claude Code cuando el bot deje de responder con error 401.</p>
+
+  <div class="step">
+    <div class="step-num">PASO 1</div>
+    <div class="step-title">Iniciar el flow de login</div>
+    <button class="btn" id="startBtn">Generar link OAuth</button>
+    <div id="step1Status"></div>
+  </div>
+
+  <div class="step hidden" id="step2">
+    <div class="step-num">PASO 2</div>
+    <div class="step-title">Abrí el link, autorizá con tu cuenta y pegá el código</div>
+    <div class="url" id="oauthUrl"></div>
+    <button class="copy-btn" id="copyBtn" style="margin-bottom:12px">Copiar link</button>
+    <a id="openLink" target="_blank" rel="noopener" style="display:inline-block;margin-bottom:12px;margin-left:8px;font-size:13px">Abrir en pestaña nueva ↗</a>
+    <input type="text" id="codeInput" placeholder="xxxxx#yyyyy" autocomplete="off">
+    <button class="btn" id="submitBtn">Enviar código</button>
+    <div id="step2Status"></div>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token') || '';
+const authHeaders = { 'Content-Type': 'application/json' };
+if (token) authHeaders['Authorization'] = 'Bearer ' + token;
+
+function setStatus(el, msg, kind) {
+  el.innerHTML = '<div class="status ' + kind + '">' + msg + '</div>';
+}
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('startBtn');
+  const status = document.getElementById('step1Status');
+  btn.disabled = true;
+  setStatus(status, '<span class="spinner"></span>Generando link OAuth (espera ~10s)...', 'info');
+  try {
+    const res = await fetch('/relogin/start', { method: 'POST', headers: authHeaders });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setStatus(status, '❌ ' + (data.error || 'Error: ' + res.status) + (data.screen ? '<pre style="margin-top:8px;font-size:10px;white-space:pre-wrap">' + data.screen + '</pre>' : ''), 'err');
+      btn.disabled = false;
+      return;
+    }
+    setStatus(status, '✅ Link generado', 'ok');
+    document.getElementById('step2').classList.remove('hidden');
+    document.getElementById('oauthUrl').textContent = data.url;
+    document.getElementById('openLink').href = data.url;
+    document.getElementById('codeInput').focus();
+  } catch (e) {
+    setStatus(status, '❌ Error de red: ' + e.message, 'err');
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const url = document.getElementById('oauthUrl').textContent;
+  await navigator.clipboard.writeText(url);
+  document.getElementById('copyBtn').textContent = '¡Copiado!';
+  setTimeout(() => { document.getElementById('copyBtn').textContent = 'Copiar link'; }, 1500);
+});
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('step2Status');
+  const code = document.getElementById('codeInput').value.trim();
+  if (!code) { setStatus(status, '❌ Pegá el código primero', 'err'); return; }
+  btn.disabled = true;
+  setStatus(status, '<span class="spinner"></span>Inyectando código y verificando...', 'info');
+  try {
+    const res = await fetch('/relogin/code', { method: 'POST', headers: authHeaders, body: JSON.stringify({ code }) });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setStatus(status, '❌ ' + (data.error || 'Error: ' + res.status) + (data.screen ? '<pre style="margin-top:8px;font-size:10px;white-space:pre-wrap">' + data.screen + '</pre>' : ''), 'err');
+      btn.disabled = false;
+      return;
+    }
+    setStatus(status, '✅ Login exitoso. El bot ya debería responder normalmente.', 'ok');
+  } catch (e) {
+    setStatus(status, '❌ Error de red: ' + e.message, 'err');
+    btn.disabled = false;
+  }
+});
+</script>
+</body></html>`;
+
 Bun.serve({
   port: PORT,
   hostname: HOST,
@@ -833,6 +972,59 @@ Bun.serve({
 
     if (req.method === "GET" && url.pathname === "/health") {
       return Response.json({ status: "ok", timestamp: new Date().toISOString() });
+    }
+
+    // Relogin UI page
+    if (req.method === "GET" && url.pathname === "/relogin") {
+      return new Response(RELOGIN_HTML, {
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    // Start OAuth flow: send /login to tmux, capture URL
+    if (req.method === "POST" && url.pathname === "/relogin/start") {
+      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      try {
+        await tmuxSend("C-u");
+        await sleep(300);
+        await tmuxSend("/login", "Enter");
+        await sleep(2500);
+        await tmuxSend("Enter"); // selecciona opción 1 (Claude subscription, ya marcada)
+        await sleep(5000);
+        const screen = await tmuxCapture();
+        // La URL puede venir partida en líneas; reconstruir uniendo trims
+        const joined = screen.split("\n").map(l => l.trim()).join("");
+        const m = joined.match(/https:\/\/claude\.com\/cai\/oauth\/authorize\?[^\s]+/);
+        if (m) return Response.json({ ok: true, url: m[0] });
+        return Response.json({ ok: false, error: "URL OAuth no encontrada en tmux", screen: screen.slice(-800) });
+      } catch (e: any) {
+        return Response.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+      }
+    }
+
+    // Submit OAuth code: inject into tmux with -l, confirm with Enter, verify
+    if (req.method === "POST" && url.pathname === "/relogin/code") {
+      if (!checkAuth(req)) return new Response("Unauthorized", { status: 401 });
+      try {
+        const body = await req.json() as { code?: string };
+        const code = (body.code ?? "").trim();
+        if (!code) return Response.json({ ok: false, error: "Código vacío" }, { status: 400 });
+        if (!/^[A-Za-z0-9_\-#]+$/.test(code)) {
+          return Response.json({ ok: false, error: "Formato de código inválido" }, { status: 400 });
+        }
+        await tmuxSend("-l", code);
+        await sleep(500);
+        await tmuxSend("Enter");
+        await sleep(4000);
+        let screen = await tmuxCapture();
+        if (screen.includes("Login successful")) {
+          await tmuxSend("Enter"); // cierra el diálogo
+          return Response.json({ ok: true, message: "Login exitoso" });
+        }
+        return Response.json({ ok: false, error: "Login no confirmado", screen: screen.slice(-800) });
+      } catch (e: any) {
+        return Response.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+      }
     }
 
     return new Response("Not Found", { status: 404 });
