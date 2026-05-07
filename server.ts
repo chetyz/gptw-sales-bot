@@ -974,6 +974,47 @@ Bun.serve({
       return Response.json({ status: "ok", timestamp: new Date().toISOString() });
     }
 
+    // Estado del bot Claude Code adentro del tmux. Devuelve { healthy, reason, message }.
+    // Usado por el frontend para diagnosticar cuando el chat se queda en "Pensando..." sin respuesta.
+    if (req.method === "GET" && url.pathname === "/bot-status") {
+      const statusCtx = await validateAuth(req);
+      if (!statusCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      try {
+        const screen = await tmuxCapture();
+        const has401 = /API Error: 401|Please run \/login|Invalid authentication credentials/i.test(screen);
+        const isKilled = /\bKilled\b|Out of memory/i.test(screen);
+        const isListening = screen.includes("Listening for channel messages");
+        const isAdmin = statusCtx.profile.role === "admin";
+        if (has401) {
+          return Response.json({
+            healthy: false,
+            reason: "oauth_expired",
+            message: "El bot perdió la autenticación con Claude (OAuth expirado).",
+            can_fix: isAdmin,
+          });
+        }
+        if (isKilled) {
+          return Response.json({
+            healthy: false,
+            reason: "killed",
+            message: "El proceso interno del bot está caído (OOM o crash).",
+            can_fix: false,
+          });
+        }
+        if (!isListening) {
+          return Response.json({
+            healthy: false,
+            reason: "not_listening",
+            message: "El bot todavía no se conectó al canal — esperá unos segundos.",
+            can_fix: false,
+          });
+        }
+        return Response.json({ healthy: true });
+      } catch (e: any) {
+        return Response.json({ healthy: false, reason: "error", message: e.message ?? String(e), can_fix: false }, { status: 500 });
+      }
+    }
+
     // Relogin UI page
     if (req.method === "GET" && url.pathname === "/relogin") {
       return new Response(RELOGIN_HTML, {

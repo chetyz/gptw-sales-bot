@@ -2905,6 +2905,7 @@
       state.eventSource = es;
 
       es.addEventListener('status', (e) => {
+        kickWatchdog();
         // Keep typing indicator alive — the bot is still working.
         // Only the final message/done events should clear it.
         try {
@@ -2923,6 +2924,7 @@
       });
 
       es.addEventListener('artifact', (e) => {
+        kickWatchdog();
         try {
           const data = JSON.parse(e.data);
           finishStatuses();
@@ -2938,6 +2940,7 @@
       });
 
       es.addEventListener('message', (e) => {
+        clearWatchdog();
         try {
           const data = JSON.parse(e.data);
           if (data.role === 'assistant' || !data.role) {
@@ -2968,6 +2971,7 @@
       });
 
       es.addEventListener('done', () => {
+        clearWatchdog();
         finishStatuses();
         removeFloatingTyping();
         state.isWaiting = false;
@@ -2977,6 +2981,7 @@
       });
 
       es.addEventListener('error_event', (e) => {
+        clearWatchdog();
         finishStatuses();
         removeFloatingTyping();
         state.isWaiting = false;
@@ -2996,9 +3001,95 @@
         removeFloatingTyping();
         state.isWaiting = false;
         updateSendBtn();
+        clearWatchdog();
         es.close();
         state.eventSource = null;
       };
+
+      kickWatchdog();
+    }
+
+    /* ================================================================
+       BOT WATCHDOG — detecta cuando Claude Code adentro está caído
+       (típicamente OAuth 401) y muestra un banner accionable en el chat
+       en vez de dejar el "Pensando..." infinito.
+       ================================================================ */
+    function kickWatchdog() {
+      if (state.botWatchdog) clearTimeout(state.botWatchdog);
+      state.botWatchdog = setTimeout(checkBotHealthBanner, 35000);
+    }
+    function clearWatchdog() {
+      if (state.botWatchdog) {
+        clearTimeout(state.botWatchdog);
+        state.botWatchdog = null;
+      }
+    }
+    async function checkBotHealthBanner() {
+      try {
+        const headers = {};
+        if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+        const res = await fetch('/bot-status', { headers });
+        if (!res.ok) { kickWatchdog(); return; }
+        const data = await res.json();
+        if (data.healthy) { kickWatchdog(); return; }
+        removeTypingIndicator();
+        removeFloatingTyping();
+        finishStatuses();
+        state.isWaiting = false;
+        updateSendBtn();
+        if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+        showBotDownBanner(data.reason, data.message, !!data.can_fix);
+      } catch {
+        kickWatchdog();
+      }
+    }
+    function showBotDownBanner(reason, msg, canFix) {
+      const container = document.getElementById('messages');
+      if (!container) return;
+      const row = document.createElement('div');
+      row.className = 'message-row assistant';
+
+      const inner = document.createElement('div');
+      inner.className = 'message-inner';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.style.cssText = 'background:#fef2f2;color:#FF1628';
+      avatar.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+      const content = document.createElement('div');
+      content.className = 'message-content';
+
+      const header = document.createElement('div');
+      header.className = 'message-header';
+      header.innerHTML = '<div class="message-sender" style="color:#FF1628">⚠️ Bot no disponible</div>';
+
+      const body = document.createElement('div');
+      body.className = 'message-body';
+      const text = document.createElement('div');
+      text.textContent = msg || 'El bot no responde en este momento.';
+      body.appendChild(text);
+
+      if (canFix) {
+        const btn = document.createElement('button');
+        btn.textContent = '🔐 Renovar OAuth';
+        btn.style.cssText = 'background:#FF1628;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;margin-top:12px';
+        btn.onclick = () => window.open('/relogin?token=' + encodeURIComponent(state.token || ''), '_blank');
+        body.appendChild(btn);
+      } else {
+        const note = document.createElement('div');
+        note.style.cssText = 'margin-top:10px;color:#6B7280;font-size:13px';
+        note.textContent = 'Avisale a un admin para que renueve la sesión.';
+        body.appendChild(note);
+      }
+
+      content.appendChild(header);
+      content.appendChild(body);
+      inner.appendChild(avatar);
+      inner.appendChild(content);
+      row.appendChild(inner);
+      container.appendChild(row);
+      if (typeof scrollToBottom === 'function') scrollToBottom();
     }
 
     /* ================================================================
