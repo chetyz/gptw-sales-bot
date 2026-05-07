@@ -658,6 +658,16 @@
     }
     .fc-typing .dot:nth-child(2) { animation-delay: 0.2s; }
     .fc-typing .dot:nth-child(3) { animation-delay: 0.4s; }
+    .fc-typing-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-left: 8px;
+      font-style: italic;
+      max-width: 250px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .fc-input-wrap {
       padding: 12px;
       border-top: 1px solid var(--border);
@@ -2637,15 +2647,32 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    function showFloatingTyping() {
+    function showFloatingTyping(initialText) {
       removeFloatingTyping();
       const container = $('#floatingMessages');
       const div = document.createElement('div');
       div.className = 'fc-typing';
       div.id = 'fcTyping';
-      div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+      const text = initialText || 'Procesando tu consulta...';
+      div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>'
+        + '<span class="fc-typing-text" id="fcTypingText"></span>';
       container.appendChild(div);
+      const span = div.querySelector('#fcTypingText');
+      if (span) span.textContent = text;
       container.scrollTop = container.scrollHeight;
+    }
+
+    function showFloatingStatus(text) {
+      // Actualiza el texto al lado de los puntitos con el último status del bot.
+      // Si no había typing indicator (caso raro), lo crea.
+      let el = document.getElementById('fcTypingText');
+      if (!el) {
+        showFloatingTyping(text);
+      } else {
+        el.textContent = text;
+      }
+      const container = $('#floatingMessages');
+      if (container) container.scrollTop = container.scrollHeight;
     }
 
     function removeFloatingTyping() {
