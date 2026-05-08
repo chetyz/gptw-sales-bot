@@ -981,9 +981,14 @@ Bun.serve({
       if (!statusCtx) return Response.json({ error: "Unauthorized" }, { status: 401 });
       try {
         const screen = await tmuxCapture();
-        const has401 = /API Error: 401|Please run \/login|Invalid authentication credentials/i.test(screen);
+        // Posiciones del último match — si "Listening" es más reciente que el 401, el bot ya se recuperó
+        const err401Re = /API Error: 401|Please run \/login|Invalid authentication credentials/gi;
+        let last401 = -1;
+        for (const m of screen.matchAll(err401Re)) last401 = m.index ?? last401;
+        const lastListening = screen.lastIndexOf("Listening for channel messages");
+        const has401 = last401 !== -1 && last401 > lastListening;
         const isKilled = /\bKilled\b|Out of memory/i.test(screen);
-        const isListening = screen.includes("Listening for channel messages");
+        const isListening = lastListening !== -1;
         const isAdmin = statusCtx.profile.role === "admin";
         if (has401) {
           return Response.json({
@@ -1066,6 +1071,10 @@ Bun.serve({
         let screen = await tmuxCapture();
         if (screen.includes("Login successful")) {
           await tmuxSend("Enter"); // cierra el diálogo
+          await sleep(500);
+          // Limpia scrollback + pantalla para que /bot-status no detecte el 401 viejo
+          await tmuxRun(["clear-history", "-t", "bot"]);
+          await tmuxSend("C-l");
           return Response.json({ ok: true, message: "Login exitoso" });
         }
         return Response.json({ ok: false, error: "Login no confirmado", screen: screen.slice(-800) });
