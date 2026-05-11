@@ -2229,7 +2229,9 @@
     function renderMarkdown(text) {
       if (typeof marked !== 'undefined') {
         marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
-        return marked.parse(text);
+        const html = marked.parse(text);
+        // Forzar links a abrirse en pestaña nueva (Salesforce, etc.)
+        return html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
       }
       return escapeHtml(text).replace(/\n/g, '<br>');
     }
@@ -2534,7 +2536,7 @@
         const wrap = $('#reportIframeWrap');
         wrap.innerHTML = '';
         const iframe = document.createElement('iframe');
-        iframe.setAttribute('sandbox', 'allow-scripts');
+        iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
         iframe.srcdoc = report.html;
         wrap.appendChild(iframe);
 
@@ -2718,7 +2720,7 @@
       const wrap = $('#reportIframeWrap');
       wrap.innerHTML = '';
       const iframe = document.createElement('iframe');
-      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
       iframe.srcdoc = report.html;
       wrap.appendChild(iframe);
 
@@ -3469,7 +3471,7 @@
       const container = $('#artifactContent');
       container.innerHTML = '';
       const iframe = document.createElement('iframe');
-      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
       iframe.srcdoc = html;
       container.appendChild(iframe);
     }

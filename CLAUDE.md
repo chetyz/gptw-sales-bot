@@ -327,6 +327,60 @@ SELECT Sem_foro_de_gesti_n__c, COUNT(Id) cnt, SUM(Amount) total FROM Opportunity
 SELECT Name, StageName, Amount, CloseDate, Account.Name FROM Opportunity WHERE Owner.Name LIKE '%nombre%' AND StageName NOT IN ('Ganada!','Perdida','Cancelada') ORDER BY CloseDate ASC
 ```
 
+## LINKS A SALESFORCE - REGLA OBLIGATORIA
+
+**TODOS los nombres de registros de Salesforce que muestres deben ser links clickeables a Lightning.** Esto permite al usuario abrir la ficha del registro directamente desde el chat o dashboard.
+
+### Patron de URL
+```
+https://greatplacetoworkmexico.lightning.force.com/lightning/r/{Objeto}/{Id}/view
+```
+
+### Objetos que SIEMPRE deben ir como link
+| Objeto | Path | Ejemplo de Id |
+|--------|------|---------------|
+| `Lead` (candidato) | `/lightning/r/Lead/{Id}/view` | `00QaZ00000ZJxkzUAD` |
+| `Account` (cuenta) | `/lightning/r/Account/{Id}/view` | `001aZ000006YFfbQAG` |
+| `Contact` (contacto) | `/lightning/r/Contact/{Id}/view` | `003aZ00000mugQjQAI` |
+| `Opportunity` (oportunidad) | `/lightning/r/Opportunity/{Id}/view` | `006aZ000009HQ0vQAG` |
+| `Quote` (ODS/presupuesto) | `/lightning/r/Quote/{Id}/view` | |
+| `Invoice__c` (factura) | `/lightning/r/Invoice__c/{Id}/view` | |
+| `Entregables__c` | `/lightning/r/Entregables__c/{Id}/view` | |
+| `Event` (reunion/evento) | `/lightning/r/Event/{Id}/view` | |
+
+### Como aplicarlo
+
+**1) En toda query SOQL: SELECCIONA SIEMPRE el campo `Id`** (y los Ids de los lookups que vayas a mostrar — `AccountId`, `OpportunityId`, `Owner.Id`, etc.):
+```sql
+-- MAL: SELECT Name, Amount FROM Opportunity ...
+-- BIEN: SELECT Id, Name, Amount, AccountId, Account.Name FROM Opportunity ...
+```
+
+**2) En respuestas de `reply` (markdown)** — formatea el nombre como link:
+```markdown
+| Cuenta | Monto |
+|--------|-------|
+| [Farmaceuticos Maypo](https://greatplacetoworkmexico.lightning.force.com/lightning/r/Account/001aZ000006YFfbQAG/view) | $1,200,000 |
+| [LDN 4 - CALUFE - 2026](https://greatplacetoworkmexico.lightning.force.com/lightning/r/Opportunity/006aZ000009HQ0vQAG/view) | $450,000 |
+```
+
+**3) En dashboards HTML (`send_artifact`)** — usa `<a>` con `target="_blank"` y un estilo discreto:
+```html
+<a href="https://greatplacetoworkmexico.lightning.force.com/lightning/r/Opportunity/006xxxxxxxxxxx/view"
+   target="_blank"
+   style="color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,22,40,0.4);"
+   title="Abrir en Salesforce">
+  LDN 4 - CALUFE - 2026
+</a>
+```
+
+### Reglas importantes
+- **Si no tenes el Id, NO inventes uno.** Re-ejecuta la query incluyendo `Id` antes de armar la respuesta
+- Para lookups (ej: mostrar el nombre de la cuenta dueña de una opportunity), usa el Id del lookup: `Account.Id` o `AccountId`, NO el Id de la opportunity
+- Para campos custom con `__c`, el path lleva el sufijo: `/lightning/r/Invoice__c/{Id}/view`
+- En tablas/listas largas con muchos registros, TODOS deben ser links — no solo el primero
+- En texto narrativo ("La cuenta X cerro Y"), tambien envolve el nombre en link
+
 ## REGLAS PARA DASHBOARDS HTML (send_artifact)
 
 Cuando generes dashboards HTML con `send_artifact`:
