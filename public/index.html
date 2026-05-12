@@ -2145,6 +2145,10 @@
         <!-- USERS TAB -->
         <div id="adminTabUsers" class="hidden">
           <div class="admin-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div style="font-size:13px;color:#6b6c7b">Solo los emails listados pueden ingresar a la app.</div>
+              <button class="btn" onclick="openAddUserModal()">+ Agregar usuario</button>
+            </div>
             <table class="users-table" id="usersTable">
               <thead>
                 <tr>
@@ -2156,10 +2160,44 @@
                   <th>Generar</th>
                   <th>Exportar</th>
                   <th>Ultimo login</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody id="usersTableBody"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== MODAL: Agregar usuario ====== -->
+      <div class="modal-overlay" id="addUserModal">
+        <div class="modal-box" style="max-width:440px;text-align:left">
+          <h3 style="margin-bottom:8px">Agregar usuario</h3>
+          <p style="color:#6b6c7b;font-size:13px;margin-bottom:16px">El email debe coincidir con la cuenta de Google con la que va a iniciar sesion.</p>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <label style="font-size:12px;color:#6b6c7b">Email
+              <input type="email" id="addUserEmail" placeholder="usuario@empresa.com" style="margin-top:4px;width:100%;padding:8px 10px;border:1px solid #d0d0d3;border-radius:6px;font-family:inherit"/>
+            </label>
+            <label style="font-size:12px;color:#6b6c7b">Nombre (opcional)
+              <input type="text" id="addUserName" placeholder="Maria Garcia" style="margin-top:4px;width:100%;padding:8px 10px;border:1px solid #d0d0d3;border-radius:6px;font-family:inherit"/>
+            </label>
+            <label style="font-size:12px;color:#6b6c7b">Rol
+              <select id="addUserRole" style="margin-top:4px;width:100%;padding:8px 10px;border:1px solid #d0d0d3;border-radius:6px;font-family:inherit;background:#fff">
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;margin-top:4px">
+              <label><input type="checkbox" id="addUserCanChat" checked> Chat</label>
+              <label><input type="checkbox" id="addUserCanViewReports" checked> Ver reportes</label>
+              <label><input type="checkbox" id="addUserCanSaveReports" checked> Guardar</label>
+              <label><input type="checkbox" id="addUserCanGenerateCharts" checked> Generar</label>
+              <label><input type="checkbox" id="addUserCanExport"> Exportar</label>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+            <button onclick="closeAddUserModal()" style="padding:8px 14px;background:#f0f0f3;color:#11131C;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px">Cancelar</button>
+            <button class="btn" onclick="submitAddUser()">Agregar</button>
           </div>
         </div>
       </div>
@@ -2284,17 +2322,36 @@
     }
 
     async function fetchMeAndLogin() {
-      if (!state.token) return null;
+      if (!state.token) return { kind: 'no_session' };
       const headers = { 'Authorization': 'Bearer ' + state.token };
       try {
         const res = await fetch('/me', { headers });
-        if (!res.ok) return null;
+        if (res.status === 403) {
+          const body = await res.json().catch(() => ({}));
+          return { kind: 'not_authorized', email: body.email };
+        }
+        if (!res.ok) return { kind: 'no_session' };
         const data = await res.json();
         state.profile = data.profile;
         // Registrar login event (no bloquea)
         fetch('/auth/login', { method: 'POST', headers }).catch(() => {});
-        return data.profile;
-      } catch { return null; }
+        return { kind: 'ok', profile: data.profile };
+      } catch { return { kind: 'no_session' }; }
+    }
+
+    function showNotAuthorizedScreen(email) {
+      const overlay = $('#loginOverlay');
+      const card = overlay.querySelector('.login-card');
+      card.innerHTML = `
+        <div class="login-logo" style="background:#FEE2E2;color:#FF1628">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h1>Acceso no autorizado</h1>
+        <p>El email <strong>${escapeHtml(email || '')}</strong> no esta en la lista de usuarios habilitados. Pedile a un admin que te invite.</p>
+        <button type="button" class="login-btn" onclick="logout()">Cerrar sesion</button>
+      `;
+      overlay.classList.remove('hidden');
+      $('#app').classList.remove('visible');
     }
 
     function applyPermissionsToUI() {
@@ -2322,22 +2379,33 @@
     }
 
     async function enterApp(name) {
-      state.userName = name;
+      // Antes de revelar la app, pedir el profile. Si no esta autorizado, mostrar la pantalla de bloqueo.
+      const result = await fetchMeAndLogin();
+      if (result.kind === 'not_authorized') {
+        showNotAuthorizedScreen(result.email);
+        return;
+      }
+      if (result.kind !== 'ok') {
+        // sin sesion / error transitorio: dejar el overlay visible
+        return;
+      }
+
+      // Preferir el display_name del profile si existe; cae a lo que vino de Google.
+      const finalName = state.profile?.display_name || name;
+      state.userName = finalName;
       state.chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
-      const initials = getInitials(name);
+      const initials = getInitials(finalName);
       $('#sidebarAvatar').textContent = initials;
-      $('#sidebarAvatar').title = name;
-      $('#homeGreeting').textContent = getGreeting() + ', ' + name.split(' ')[0];
+      $('#sidebarAvatar').title = finalName;
+      $('#homeGreeting').textContent = getGreeting() + ', ' + finalName.split(' ')[0];
       $('#homeDate').textContent = formatDate();
       const welcomeH2 = $('#welcome h2');
-      if (welcomeH2) welcomeH2.textContent = 'Hola, ' + name.split(' ')[0];
+      if (welcomeH2) welcomeH2.textContent = 'Hola, ' + finalName.split(' ')[0];
 
       $('#loginOverlay').classList.add('hidden');
       $('#app').classList.add('visible');
 
-      // Traer perfil (con permisos) ANTES de habilitar UI
-      await fetchMeAndLogin();
       applyPermissionsToUI();
 
       $('#chatInput').disabled = !(state.profile?.can_chat ?? true);
@@ -4098,7 +4166,12 @@
     function renderUsersTable(users) {
       const fmtDate = (s) => s ? new Date(s).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '-';
       const tbody = $('#usersTableBody');
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = users.map(u => {
+        const pending = !u.auth_user_id;
+        const lastLoginCell = pending
+          ? '<span style="font-size:11px;color:#FF1628;font-weight:600">Pendiente primer login</span>'
+          : `<span style="font-size:11px;color:#6b6c7b">${fmtDate(u.last_login_at)}</span>`;
+        return `
         <tr data-uid="${u.id}">
           <td>
             <div style="font-weight:500">${escapeHtml(u.display_name || u.email.split('@')[0])}</div>
@@ -4115,9 +4188,10 @@
           <td><input type="checkbox" ${u.can_save_reports?'checked':''} onchange="patchUser('${u.id}', { can_save_reports: this.checked })"></td>
           <td><input type="checkbox" ${u.can_generate_charts?'checked':''} onchange="patchUser('${u.id}', { can_generate_charts: this.checked })"></td>
           <td><input type="checkbox" ${u.can_export?'checked':''} onchange="patchUser('${u.id}', { can_export: this.checked })"></td>
-          <td style="font-size:11px;color:#6b6c7b">${fmtDate(u.last_login_at)}</td>
-        </tr>
-      `).join('');
+          <td>${lastLoginCell}</td>
+          <td><button onclick="deleteUser('${u.id}', '${escapeHtml(u.email)}')" title="Eliminar" style="background:transparent;border:none;cursor:pointer;color:#FF1628;font-size:16px">×</button></td>
+        </tr>`;
+      }).join('');
     }
 
     async function patchUser(id, body) {
@@ -4129,6 +4203,54 @@
       }
     }
     window.patchUser = patchUser;
+
+    async function deleteUser(id, email) {
+      if (!confirm(`Eliminar acceso de ${email}?`)) return;
+      try {
+        await adminFetch('/admin/users/' + id, { method: 'DELETE' });
+        await loadAdminUsers();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+    window.deleteUser = deleteUser;
+
+    function openAddUserModal() {
+      $('#addUserEmail').value = '';
+      $('#addUserName').value = '';
+      $('#addUserRole').value = 'user';
+      $('#addUserCanChat').checked = true;
+      $('#addUserCanViewReports').checked = true;
+      $('#addUserCanSaveReports').checked = true;
+      $('#addUserCanGenerateCharts').checked = true;
+      $('#addUserCanExport').checked = false;
+      $('#addUserModal').classList.add('visible');
+      setTimeout(() => $('#addUserEmail').focus(), 100);
+    }
+    function closeAddUserModal() { $('#addUserModal').classList.remove('visible'); }
+    window.openAddUserModal = openAddUserModal;
+    window.closeAddUserModal = closeAddUserModal;
+
+    async function submitAddUser() {
+      const email = $('#addUserEmail').value.trim();
+      if (!email) { $('#addUserEmail').focus(); return; }
+      const body = {
+        email,
+        display_name: $('#addUserName').value.trim() || null,
+        role: $('#addUserRole').value,
+        can_chat: $('#addUserCanChat').checked,
+        can_view_reports: $('#addUserCanViewReports').checked,
+        can_save_reports: $('#addUserCanSaveReports').checked,
+        can_generate_charts: $('#addUserCanGenerateCharts').checked,
+        can_export: $('#addUserCanExport').checked,
+      };
+      try {
+        await adminFetch('/admin/users', { method: 'POST', body: JSON.stringify(body) });
+        closeAddUserModal();
+        await loadAdminUsers();
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+    window.submitAddUser = submitAddUser;
 
     function loadAdminInitial() {
       // Defaults: ultimos 30 dias

@@ -5,8 +5,8 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readFileSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { generateAllReports, type ReportCache } from "./reports";
 
@@ -137,6 +137,41 @@ async function sfSearch(searchTerm: string): Promise<any> {
 // ─── Report Cache & Scheduler (4am Mexico City = UTC-6) ──────────────────
 let reportsCache: ReportCache[] = [];
 let reportsGenerating = false;
+let reportsSavedAt: string | null = null;
+
+// Persistencia: el volumen de Fly está montado en /root/.claude (sobrevive
+// a redeploys, restarts y OOMs). En dev usamos /tmp.
+const REPORTS_CACHE_PATH = process.env.REPORTS_CACHE_PATH
+  ?? (existsSync("/root/.claude") ? "/root/.claude/reports_cache.json" : "/tmp/gptw_reports_cache.json");
+
+function loadReportsFromDisk() {
+  try {
+    if (!existsSync(REPORTS_CACHE_PATH)) return;
+    const raw = readFileSync(REPORTS_CACHE_PATH, "utf-8");
+    const parsed = JSON.parse(raw) as { savedAt: string; reports: ReportCache[] };
+    if (Array.isArray(parsed.reports) && parsed.reports.length > 0) {
+      reportsCache = parsed.reports;
+      reportsSavedAt = parsed.savedAt;
+      const ageHours = (Date.now() - new Date(parsed.savedAt).getTime()) / 3600000;
+      process.stderr.write(`[reports] Loaded ${parsed.reports.length} reports from disk (age: ${ageHours.toFixed(1)}h)\n`);
+    }
+  } catch (err: any) {
+    process.stderr.write(`[reports] Failed to load cache from disk: ${err.message}\n`);
+  }
+}
+
+function saveReportsToDisk() {
+  try {
+    const dir = dirname(REPORTS_CACHE_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const savedAt = new Date().toISOString();
+    writeFileSync(REPORTS_CACHE_PATH, JSON.stringify({ savedAt, reports: reportsCache }));
+    reportsSavedAt = savedAt;
+    process.stderr.write(`[reports] Persisted ${reportsCache.length} reports to ${REPORTS_CACHE_PATH}\n`);
+  } catch (err: any) {
+    process.stderr.write(`[reports] Failed to persist cache: ${err.message}\n`);
+  }
+}
 
 async function refreshReports() {
   if (reportsGenerating) return;
@@ -144,8 +179,14 @@ async function refreshReports() {
   const start = Date.now();
   try {
     if (!sfAccessToken) await sfLogin();
-    reportsCache = await generateAllReports(sfQuery);
-    process.stderr.write(`[reports] Generated ${reportsCache.length} reports in ${((Date.now() - start) / 1000).toFixed(1)}s\n`);
+    const fresh = await generateAllReports(sfQuery);
+    // Sólo reemplazar el cache si la nueva tanda no está vacía (evita borrar
+    // datos viejos útiles si todos los generadores fallaron).
+    if (fresh.length > 0) {
+      reportsCache = fresh;
+      saveReportsToDisk();
+    }
+    process.stderr.write(`[reports] Generated ${fresh.length} reports in ${((Date.now() - start) / 1000).toFixed(1)}s\n`);
   } catch (err: any) {
     process.stderr.write(`[reports] Error: ${err.message}\n`);
   } finally {
@@ -167,8 +208,17 @@ function scheduleNextRun() {
   process.stderr.write(`[reports] Next refresh at ${next.toISOString()} (in ${(delay / 3600000).toFixed(1)}h)\n`);
 }
 
-// Generate on startup (after 10s to let SF login settle) + schedule daily
-setTimeout(() => { refreshReports(); scheduleNextRun(); }, 10000);
+// Boot: cargar cache de disco inmediatamente para servir aunque la machine
+// recién arrancó. Programar refresh diario y, si el cache es viejo (>25h) o
+// está vacío, disparar un refresh asíncrono.
+loadReportsFromDisk();
+setTimeout(() => {
+  scheduleNextRun();
+  const ageHours = reportsSavedAt
+    ? (Date.now() - new Date(reportsSavedAt).getTime()) / 3600000
+    : Infinity;
+  if (reportsCache.length === 0 || ageHours > 25) refreshReports();
+}, 10000);
 
 // ─── SSE connections per chat_id ───────────────────────────────────────────
 const sseClients = new Map<string, Set<(data: string) => void>>();
@@ -273,17 +323,32 @@ async function validateAuth(req: Request): Promise<AuthCtx | null> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: profile, error: profErr } = await sb
-    .from("profiles")
-    .select("id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export")
-    .eq("id", data.user.id)
-    .single();
+  const PROFILE_COLS = "id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export";
 
-  if (profErr || !profile) return null;
+  // 1) Profile ya linkeado a este auth.users.id.
+  let profile: Profile | null = null;
+  const byId = await sb.from("profiles").select(PROFILE_COLS).eq("auth_user_id", data.user.id).maybeSingle();
+  if (byId.data) profile = byId.data as Profile;
+
+  // 2) Primer login: claim del profile pre-creado por admin (matchea email, sin auth_user_id).
+  // La policy "profiles_claim_self_by_email" autoriza este UPDATE.
+  if (!profile) {
+    const claimed = await sb
+      .from("profiles")
+      .update({ auth_user_id: data.user.id })
+      .is("auth_user_id", null)
+      .ilike("email", email)
+      .select(PROFILE_COLS)
+      .maybeSingle();
+    if (claimed.data) profile = claimed.data as Profile;
+  }
+
+  // 3) Sin profile pre-creado → no autorizado.
+  if (!profile) return null;
 
   return {
     user: { id: data.user.id, email },
-    profile: profile as Profile,
+    profile,
     jwt: token,
     sb,
   };
@@ -308,7 +373,8 @@ function requireAdmin(ctx: AuthCtx): Response | null {
 // Fire-and-forget event logger. Doesn't block the response.
 function logEvent(ctx: AuthCtx, type: "login" | "chat_message" | "artifact_generated" | "report_viewed" | "report_exported", metadata: object = {}) {
   if (!ctx.sb) return;
-  ctx.sb.from("events").insert({ user_id: ctx.user.id, type, metadata }).then(({ error }) => {
+  // events.user_id apunta a profiles.id (el UUID propio del profile, no el de auth.users).
+  ctx.sb.from("events").insert({ user_id: ctx.profile.id, type, metadata }).then(({ error }) => {
     if (error) process.stderr.write(`[events] ${type} insert failed: ${error.message}\n`);
   });
 }
@@ -765,10 +831,23 @@ Bun.serve({
     }
 
     // GET /me — quien soy y mis permisos. El frontend lo usa para condicionar UI.
+    // Diferencia "sin JWT" (401) de "JWT valido pero email no autorizado" (403)
+    // para que el frontend muestre el mensaje correcto.
     if (req.method === "GET" && url.pathname === "/me") {
       const ctx = await validateAuth(req);
-      if (!ctx) return new Response("Unauthorized", { status: 401 });
-      return Response.json({ user: ctx.user, profile: ctx.profile });
+      if (ctx) return Response.json({ user: ctx.user, profile: ctx.profile });
+
+      // Distinguir motivo: si hay JWT valido pero no hay profile → not_authorized.
+      if (supabase) {
+        const token = extractToken(req);
+        if (token) {
+          const { data } = await supabase.auth.getUser(token);
+          if (data?.user?.email) {
+            return Response.json({ error: "not_authorized", email: data.user.email }, { status: 403 });
+          }
+        }
+      }
+      return new Response("Unauthorized", { status: 401 });
     }
 
     // POST /auth/login — registra login event y actualiza last_login_at.
@@ -776,7 +855,7 @@ Bun.serve({
       const ctx = await validateAuth(req);
       if (!ctx) return new Response("Unauthorized", { status: 401 });
       logEvent(ctx, "login");
-      if (ctx.sb) ctx.sb.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", ctx.user.id).then(() => {});
+      if (ctx.sb) ctx.sb.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", ctx.profile.id).then(() => {});
       return Response.json({ ok: true });
     }
 
@@ -788,7 +867,7 @@ Bun.serve({
       if (!chatId) return new Response("Missing chat_id", { status: 400 });
 
       // Asociar chat → user para poder loguear artifact_generated después
-      chatOwners.set(chatId, ctx.user.id);
+      chatOwners.set(chatId, ctx.profile.id);
 
       const stream = new ReadableStream({
         start(ctrl) {
@@ -829,7 +908,7 @@ Bun.serve({
       const userName = body.user_name ?? ctx.profile.display_name ?? "Gerente";
 
       // Bind del chat al user para el logging de artifact_generated
-      chatOwners.set(chatId, ctx.user.id);
+      chatOwners.set(chatId, ctx.profile.id);
       // Guardar el sb client del user (para insertar events bajo su JWT)
       if (ctx.sb) chatSbClients.set(chatId, ctx.sb);
 
@@ -865,7 +944,7 @@ Bun.serve({
       const denied = requirePermission(ctx, "can_view_reports");
       if (denied) return denied;
       const list = reportsCache.map(r => ({ id: r.id, title: r.title, icon: r.icon, summary: r.summary, generatedAt: r.generatedAt }));
-      return Response.json({ reports: list, generating: reportsGenerating });
+      return Response.json({ reports: list, generating: reportsGenerating, savedAt: reportsSavedAt });
     }
 
     // Serve individual report HTML
@@ -898,12 +977,34 @@ Bun.serve({
       const denied = requireAdmin(ctx);
       if (denied) return denied;
 
+      // auth_user_id: si es null = aún no se logueó por primera vez (pendiente).
       const { data, error } = await ctx.sb
         .from("profiles")
-        .select("id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export, created_at, last_login_at")
+        .select("id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export, created_at, last_login_at, auth_user_id")
         .order("created_at", { ascending: true });
       if (error) return Response.json({ error: error.message }, { status: 500 });
       return Response.json({ users: data });
+    }
+
+    // POST /admin/users — crear un user (admin "invita" un email).
+    if (req.method === "POST" && url.pathname === "/admin/users") {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+
+      const body = await req.json() as Partial<Profile>;
+      if (!body.email || typeof body.email !== "string") {
+        return Response.json({ error: "email requerido" }, { status: 400 });
+      }
+
+      const fields: (keyof Profile)[] = ["role", "can_chat", "can_view_reports", "can_save_reports", "can_generate_charts", "can_export", "display_name"];
+      const insertRow: any = { email: body.email.trim().toLowerCase() };
+      for (const f of fields) if (f in body) insertRow[f] = (body as any)[f];
+
+      const { data, error } = await ctx.sb.from("profiles").insert(insertRow).select().single();
+      if (error) return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ profile: data }, { status: 201 });
     }
 
     if (req.method === "PATCH" && url.pathname.startsWith("/admin/users/")) {
@@ -915,14 +1016,28 @@ Bun.serve({
       const userId = url.pathname.split("/admin/users/")[1];
       const body = await req.json() as Partial<Profile>;
 
-      // Whitelist de campos editables
       const allowed: Partial<Profile> = {};
-      const fields: (keyof Profile)[] = ["role", "can_chat", "can_view_reports", "can_save_reports", "can_generate_charts", "can_export"];
+      const fields: (keyof Profile)[] = ["role", "can_chat", "can_view_reports", "can_save_reports", "can_generate_charts", "can_export", "display_name"];
       for (const f of fields) if (f in body) (allowed as any)[f] = (body as any)[f];
 
       const { data, error } = await ctx.sb.from("profiles").update(allowed).eq("id", userId).select().single();
       if (error) return Response.json({ error: error.message }, { status: 400 });
       return Response.json({ profile: data });
+    }
+
+    if (req.method === "DELETE" && url.pathname.startsWith("/admin/users/")) {
+      const ctx = await validateAuth(req);
+      if (!ctx) return new Response("Unauthorized", { status: 401 });
+      const denied = requireAdmin(ctx);
+      if (denied) return denied;
+
+      const userId = url.pathname.split("/admin/users/")[1];
+      if (userId === ctx.profile.id) {
+        return Response.json({ error: "no podes borrarte a vos mismo" }, { status: 400 });
+      }
+      const { error } = await ctx.sb.from("profiles").delete().eq("id", userId);
+      if (error) return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ ok: true });
     }
 
     if (req.method === "GET" && url.pathname === "/admin/analytics") {

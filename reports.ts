@@ -3270,26 +3270,27 @@ new Chart(document.getElementById('productoChart'),{
 // ─── Main export: generate all reports ───────────────────────────────────────
 
 export async function generateAllReports(query: QueryFn): Promise<ReportCache[]> {
-  const generators = [
-    generateEjecutivo,
-    generateVentas,
-    generatePipeline,
-    generateComercial,
-    generateMetas,
-    generateCobranza,
-    generateCuentas,
+  const generators: Array<{ name: string; fn: (q: QueryFn) => Promise<ReportCache> }> = [
+    { name: "Ejecutivo", fn: generateEjecutivo },
+    { name: "Ventas",    fn: generateVentas },
+    { name: "Pipeline",  fn: generatePipeline },
+    { name: "Comercial", fn: generateComercial },
+    { name: "Metas",     fn: generateMetas },
+    { name: "Cobranza",  fn: generateCobranza },
+    { name: "Cuentas",   fn: generateCuentas },
   ];
 
-  const results: ReportCache[] = [];
+  // Ejecutar los 7 generadores en paralelo. Una falla individual no tira al resto.
+  const settled = await Promise.allSettled(generators.map(g => g.fn(query)));
 
-  for (const gen of generators) {
-    try {
-      const report = await gen(query);
-      results.push(report);
-    } catch (err: any) {
-      console.error(`Error generating report: ${err.message}`);
+  const results: ReportCache[] = [];
+  settled.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      results.push(r.value);
+    } else {
+      console.error(`[reports] ${generators[i].name} failed: ${r.reason?.message ?? r.reason}`);
     }
-  }
+  });
 
   return results;
 }
