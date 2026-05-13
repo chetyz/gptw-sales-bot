@@ -169,6 +169,31 @@
       text-align: center;
     }
     .login-hint.error { color: var(--gptw-red); }
+    .login-divider {
+      display: flex; align-items: center;
+      margin: 18px 0 12px;
+      font-size: 11px; color: #9aa0a6;
+      text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    .login-divider::before, .login-divider::after {
+      content: ''; flex: 1; height: 1px; background: #e5e5ea;
+    }
+    .login-divider span { padding: 0 12px; }
+    .login-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #d0d0d3;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .login-input:focus {
+      outline: none;
+      border-color: var(--gptw-red);
+      box-shadow: 0 0 0 3px rgba(255,22,40,0.1);
+    }
 
     /* ================================================================
        APP LAYOUT
@@ -1830,6 +1855,14 @@
         </svg>
         <span>Iniciar sesion con Google</span>
       </button>
+
+      <div class="login-divider"><span>o</span></div>
+
+      <form id="magicLinkForm" autocomplete="on">
+        <input type="email" id="magicLinkEmail" class="login-input" placeholder="tu@greatplacetowork.com.mx" autocomplete="email" required />
+        <button type="submit" id="magicLinkBtn" class="login-btn" style="margin-top:8px">Enviar link de acceso</button>
+      </form>
+
       <div class="login-hint" id="loginHint"></div>
     </div>
   </div>
@@ -2468,6 +2501,33 @@
       if (error) {
         btn.disabled = false;
         setLoginHint('Error: ' + error.message, true);
+      }
+    });
+
+    $('#magicLinkForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!supabaseClient) {
+        setLoginHint('Supabase no configurado en el server', true);
+        return;
+      }
+      const email = $('#magicLinkEmail').value.trim().toLowerCase();
+      if (!email) return;
+      const btn = $('#magicLinkBtn');
+      btn.disabled = true;
+      setLoginHint('Enviando link a ' + email + '...');
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: location.origin + '/auth/callback',
+          shouldCreateUser: true,
+        },
+      });
+      btn.disabled = false;
+      if (error) {
+        setLoginHint('Error: ' + error.message, true);
+      } else {
+        setLoginHint('Listo. Revisa tu inbox (' + email + ') y cliquea el link para entrar.');
+        $('#magicLinkEmail').value = '';
       }
     });
 
