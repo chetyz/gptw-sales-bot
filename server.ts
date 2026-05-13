@@ -1278,4 +1278,4 @@ Bun.serve({
 
 const stderr = (msg: string) => process.stderr.write(msg + "\n");
 stderr(`gptw-sales-bot: http://${HOST}:${PORT}`);
-stderr(`Auth: ${supabase ? `Supabase (${ALLOWED_EMAIL_DOMAIN ? "domain=" + ALLOWED_EMAIL_DOMAIN : "any email"})` : ACCESS_TOKEN ? "static token" : "disabled (dev mode)"}`);
+stderr(`Auth: ${supabase ? `Supabase (${ALLOWED_EMAIL_SUFFIXES ? "domain=" + ALLOWED_EMAIL_SUFFIXES : "any email"})` : ACCESS_TOKEN ? "static token" : "disabled (dev mode)"}`);
