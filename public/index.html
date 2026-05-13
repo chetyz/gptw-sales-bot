@@ -2330,7 +2330,7 @@
         const res = await fetch('/me', { headers });
         if (res.status === 403) {
           const body = await res.json().catch(() => ({}));
-          return { kind: 'not_authorized', email: body.email };
+          return { kind: body.error || 'not_authorized', email: body.email, suffixes: body.allowed_suffixes };
         }
         if (!res.ok) return { kind: 'no_session' };
         const data = await res.json();
@@ -2341,15 +2341,20 @@
       } catch { return { kind: 'no_session' }; }
     }
 
-    function showNotAuthorizedScreen(email) {
+    function showNotAuthorizedScreen(email, kind, suffixes) {
       const overlay = $('#loginOverlay');
       const card = overlay.querySelector('.login-card');
+      const isDomain = kind === 'not_allowed_domain';
+      const suffixesText = (suffixes && suffixes.length) ? suffixes.join(', ') : 'corporativo';
+      const message = isDomain
+        ? `El email <strong>${escapeHtml(email || '')}</strong> no es un email corporativo de GPTW. Solo se permite el acceso con un email <strong>${escapeHtml(suffixesText)}</strong>.`
+        : `El email <strong>${escapeHtml(email || '')}</strong> no esta habilitado. Pedile a un admin que te invite.`;
       card.innerHTML = `
         <div class="login-logo" style="background:#FEE2E2;color:#FF1628">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         </div>
         <h1>Acceso no autorizado</h1>
-        <p>El email <strong>${escapeHtml(email || '')}</strong> no esta en la lista de usuarios habilitados. Pedile a un admin que te invite.</p>
+        <p>${message}</p>
         <button type="button" class="login-btn" onclick="logout()">Cerrar sesion</button>
       `;
       overlay.classList.remove('hidden');
@@ -2383,8 +2388,8 @@
     async function enterApp(name) {
       // Antes de revelar la app, pedir el profile. Si no esta autorizado, mostrar la pantalla de bloqueo.
       const result = await fetchMeAndLogin();
-      if (result.kind === 'not_authorized') {
-        showNotAuthorizedScreen(result.email);
+      if (result.kind === 'not_authorized' || result.kind === 'not_allowed_domain') {
+        showNotAuthorizedScreen(result.email, result.kind, result.suffixes);
         return;
       }
       if (result.kind !== 'ok') {

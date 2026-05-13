@@ -246,8 +246,25 @@ function logArtifactForChat(chatId: string, title: string) {
 // ─── Auth (Supabase JWT con fallback a token estático) ────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
-const ALLOWED_EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN ?? "").trim().toLowerCase();
 const ACCESS_TOKEN = process.env.GPTW_ACCESS_TOKEN ?? "";
+
+// Lista de sufijos de email permitidos para auto-registro (coma-separada).
+// Cada elemento puede ser ".com.mx" (sufijo de TLD), "@empresa.com" (dominio completo)
+// o "empresa.com" (se interpreta como @empresa.com). Vacío = sin restricción.
+// Backward-compat: si no hay ALLOWED_EMAIL_SUFFIXES, lee ALLOWED_EMAIL_DOMAIN (single).
+const ALLOWED_EMAIL_SUFFIXES = (process.env.ALLOWED_EMAIL_SUFFIXES ?? process.env.ALLOWED_EMAIL_DOMAIN ?? "")
+  .split(",")
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isEmailAllowed(email: string): boolean {
+  if (ALLOWED_EMAIL_SUFFIXES.length === 0) return true;
+  const lower = email.toLowerCase();
+  return ALLOWED_EMAIL_SUFFIXES.some(suf => {
+    if (suf.startsWith("@") || suf.startsWith(".")) return lower.endsWith(suf);
+    return lower.endsWith("@" + suf);
+  });
+}
 
 const supabase = SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
@@ -315,7 +332,6 @@ async function validateAuth(req: Request): Promise<AuthCtx | null> {
   if (error || !data?.user?.email) return null;
 
   const email = data.user.email.toLowerCase();
-  if (ALLOWED_EMAIL_DOMAIN && !email.endsWith("@" + ALLOWED_EMAIL_DOMAIN)) return null;
 
   // Cliente por request con el JWT del user → RLS sees auth.uid() = user.id.
   const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -325,13 +341,16 @@ async function validateAuth(req: Request): Promise<AuthCtx | null> {
 
   const PROFILE_COLS = "id, email, display_name, role, can_chat, can_view_reports, can_save_reports, can_generate_charts, can_export";
 
-  // 1) Profile ya linkeado a este auth.users.id.
+  // 1) Profile ya linkeado a este auth.users.id. Los users existentes pasan
+  // SIN chequear dominio (asi no nos lockeamos out al endurecer la regla).
   let profile: Profile | null = null;
   const byId = await sb.from("profiles").select(PROFILE_COLS).eq("auth_user_id", data.user.id).maybeSingle();
   if (byId.data) profile = byId.data as Profile;
 
-  // 2) Primer login: claim del profile pre-creado por admin (matchea email, sin auth_user_id).
-  // La policy "profiles_claim_self_by_email" autoriza este UPDATE.
+  // A partir de aca son flujos para users NUEVOS: requieren dominio permitido.
+  if (!profile && !isEmailAllowed(email)) return null;
+
+  // 2) Claim de un profile pre-creado por admin con el mismo email.
   if (!profile) {
     const claimed = await sb
       .from("profiles")
@@ -343,7 +362,20 @@ async function validateAuth(req: Request): Promise<AuthCtx | null> {
     if (claimed.data) profile = claimed.data as Profile;
   }
 
-  // 3) Sin profile pre-creado → no autorizado.
+  // 3) Auto-registro: dominio permitido y todavia no hay profile → crearlo.
+  // La policy "profiles_self_insert" autoriza este INSERT.
+  if (!profile) {
+    const displayName = (data.user.user_metadata?.full_name as string)
+      ?? (data.user.user_metadata?.name as string)
+      ?? email.split("@")[0];
+    const created = await sb
+      .from("profiles")
+      .insert({ email, auth_user_id: data.user.id, display_name: displayName })
+      .select(PROFILE_COLS)
+      .maybeSingle();
+    if (created.data) profile = created.data as Profile;
+  }
+
   if (!profile) return null;
 
   return {
@@ -666,6 +698,39 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 // ─── Connect to Claude Code over stdio ────────────────────────────────────
 await mcp.connect(new StdioServerTransport());
 
+// ─── Heartbeat: pingear a Claude cada 6h para mantener vivo el OAuth ──────
+// El refresh token de Claude Max tiene ventana deslizante de ~30 dias: cada
+// uso renueva la ventana. Un ping periodico evita que expire por inactividad
+// real (nadie usando el bot por dias). chat_id "system_heartbeat" no tiene
+// SSE clients, asi que la respuesta de Claude se descarta silenciosamente.
+const HEARTBEAT_INTERVAL_MS = parseInt(process.env.HEARTBEAT_INTERVAL_MS ?? String(6 * 60 * 60 * 1000));
+let lastHeartbeatAt: string | null = null;
+let lastHeartbeatErr: string | null = null;
+
+async function sendHeartbeat() {
+  try {
+    await mcp.notification({
+      method: "notifications/claude/channel",
+      params: {
+        content: "Heartbeat interno del sistema. Responde unicamente con la palabra 'ok', sin usar tools.",
+        meta: { chat_id: "system_heartbeat", user_name: "System" },
+      },
+    });
+    lastHeartbeatAt = new Date().toISOString();
+    lastHeartbeatErr = null;
+    process.stderr.write(`[heartbeat] sent at ${lastHeartbeatAt}\n`);
+  } catch (err: any) {
+    lastHeartbeatErr = err.message;
+    process.stderr.write(`[heartbeat] failed: ${err.message}\n`);
+  }
+}
+
+// Primer ping en 5 minutos (no inmediato, para no chocar con el boot/dev-channels Enter).
+setTimeout(() => {
+  sendHeartbeat();
+  setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+}, 5 * 60 * 1000);
+
 // ─── Serve the web UI and handle API routes ───────────────────────────────
 const htmlPath = join(import.meta.dir, "public", "index.html");
 
@@ -837,13 +902,15 @@ Bun.serve({
       const ctx = await validateAuth(req);
       if (ctx) return Response.json({ user: ctx.user, profile: ctx.profile });
 
-      // Distinguir motivo: si hay JWT valido pero no hay profile → not_authorized.
+      // Distinguir motivo: JWT valido pero email rechazado.
       if (supabase) {
         const token = extractToken(req);
         if (token) {
           const { data } = await supabase.auth.getUser(token);
           if (data?.user?.email) {
-            return Response.json({ error: "not_authorized", email: data.user.email }, { status: 403 });
+            const email = data.user.email;
+            const reason = isEmailAllowed(email) ? "not_authorized" : "not_allowed_domain";
+            return Response.json({ error: reason, email, allowed_suffixes: ALLOWED_EMAIL_SUFFIXES }, { status: 403 });
           }
         }
       }
@@ -1129,7 +1196,14 @@ Bun.serve({
             can_fix: false,
           });
         }
-        return Response.json({ healthy: true });
+        return Response.json({
+          healthy: true,
+          heartbeat: {
+            lastSentAt: lastHeartbeatAt,
+            lastError: lastHeartbeatErr,
+            intervalMs: HEARTBEAT_INTERVAL_MS,
+          },
+        });
       } catch (e: any) {
         return Response.json({ healthy: false, reason: "error", message: e.message ?? String(e), can_fix: false }, { status: 500 });
       }
